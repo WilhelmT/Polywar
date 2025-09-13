@@ -1,0 +1,12 @@
+# Ignore build outputs
+*.o
+*.os
+*.a
+*.dylib
+bin/
+
+# Ignore SCons cache
+.sconsign.dblite
+
+# macOS junk
+.DS_Store

@@ -1,0 +1,6 @@
+[configuration]
+entry_symbol = "clipper2_ext_library_init"
+compatibility_minimum = "4.4"
+
+[libraries]
+macos.arm64 = "res://clipper2_ext/bin/libclipper2_ext.macos.arm64.template_release.dylib"

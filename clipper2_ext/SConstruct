@@ -1,0 +1,47 @@
+import os
+from SCons.Script import DefaultEnvironment, ARGUMENTS, Default
+
+env = DefaultEnvironment()
+target   = ARGUMENTS.get("target", "template_debug")
+platform = ARGUMENTS.get("platform", "macos")
+arch     = ARGUMENTS.get("arch", "arm64")
+
+godot_cpp_path = os.path.join("..", "godot-cpp")
+
+env.Append(CPPPATH=[
+    os.path.join(godot_cpp_path, "gdextension"),
+    os.path.join(godot_cpp_path, "include"),
+    os.path.join(godot_cpp_path, "gen", "include"),
+    os.path.join("thirdparty", "clipper2", "CPP", "Clipper2Lib", "include"),
+])
+
+env.Append(CXXFLAGS=["-std=c++17"])
+if target == "template_release":
+    env.Append(CXXFLAGS=["-O3"])
+else:
+    env.Append(CXXFLAGS=["-O2", "-g"])
+
+libname = "godot-cpp.%s.%s.%s" % (platform, target, arch)
+env.Append(LIBPATH=[os.path.join(godot_cpp_path, "bin")])
+env.Append(LIBS=[libname])
+if platform == "macos":
+    env.Append(LINKFLAGS=["-Wl,-force_load," + os.path.join(godot_cpp_path,"bin","lib"+libname+".a")])
+
+sources = [
+    os.path.join("src", "clipper2_open.cpp"),
+    os.path.join("src", "register_types.cpp"),
+]
+clipper_src_dir = os.path.join("thirdparty","clipper2","CPP","Clipper2Lib","src")
+for f in os.listdir(clipper_src_dir):
+    if f.endswith(".cpp"):
+        sources.append(os.path.join(clipper_src_dir, f))
+
+if platform == "windows":
+    out = "clipper2_ext.windows.%s.%s.dll" % (arch, target)
+elif platform == "macos":
+    out = "libclipper2_ext.macos.%s.%s.dylib" % (arch, target)
+else:
+    out = "libclipper2_ext.linux.%s.%s.so" % (arch, target)
+
+shlib = env.SharedLibrary(target=os.path.join("bin", out), source=sources)
+Default(shlib)

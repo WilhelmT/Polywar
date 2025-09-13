@@ -1,0 +1,16 @@
+[gd_scene load_steps=5 format=3 uid="uid://r04pdd1dharf"]
+
+[ext_resource type="Script" uid="uid://byccwcir57fty" path="res://main.gd" id="1_jqp74"]
+[ext_resource type="PackedScene" uid="uid://cl8mykqmaiwcs" path="res://ui_component.tscn" id="2_0xm2m"]
+[ext_resource type="PackedScene" uid="uid://8tg7760wepfg" path="res://draw_component.tscn" id="2_h2yge"]
+[ext_resource type="Script" uid="uid://ck8hhy8qvtqea" path="res://simple_cursor_manager.gd" id="4_1bvp3"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_jqp74")
+
+[node name="DrawComponent" parent="." instance=ExtResource("2_h2yge")]
+
+[node name="UiComponent" parent="." instance=ExtResource("2_0xm2m")]
+
+[node name="DotPlusCursorManager" type="Node2D" parent="."]
+script = ExtResource("4_1bvp3")
