@@ -13,8 +13,8 @@ const TREE_MAX_SIDES: int						= 8		# Reduced for performance
 const TREE_CANOPY_BASE: Color					= Color(0.13, 0.32, 0.13, 1.0)  # will vary a bit
 const TREE_SHADOW_DARKEN: float					= 0.125
 const TREE_DENSITY: float						= 0.1	# ↑ denser
-const MAX_TREES_PER_AREA: int = 5000					# Prevent excessive trees
-const MAX_TREE_ATTEMPTS: int = 5000					# Limit total attempts per area
+const MAX_TREES_PER_AREA: int = 10000					# Prevent excessive trees
+const MAX_TREE_ATTEMPTS: int = 10000					# Limit total attempts per area
 const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
 const TREE_TRUNK_OFFSET: Vector2					= Vector2(0, TREE_MIN_RADIUS)
 const TREE_TRUNK_FRAC: float					= 0.2		# trunk size = frac · TREE_MIN_RADIUS
@@ -2515,7 +2515,7 @@ func _draw_simple_background() -> void:
 	
 	for original_area: Area in map.original_walkable_areas:
 		var pid: int = original_area.polygon_id
-		var terrain: String = map.terrain_map.get(pid, "plains")
+		var terrain: String = map.terrain_map[pid]
 		var col: Color = Global.get_color_for_terrain(terrain)
 		draw_colored_polygon(original_area.polygon, col)
 		# outline

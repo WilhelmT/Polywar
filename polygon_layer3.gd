@@ -82,7 +82,7 @@ func _draw_dash(point: Vector2, perpendicular: Vector2, color: Color) -> void:
 	#var dash_end: Vector2 = point + perpendicular * 4.0*dash_length
 
 	#color.a = 0.5
-	draw_line(dash_start, dash_end, color, DrawComponent.AREA_ADDON_THICKNESS*0.1, true)
+	draw_line(dash_start, dash_end, color, DrawComponent.AREA_ADDON_THICKNESS*0.075, true)
 
 	#color.a = 1.0
 	#draw_line(dash_start, dash_end, color, DrawComponent.AREA_ADDON_THICKNESS*0.05, true)
@@ -1007,7 +1007,7 @@ func _draw_polyline_segments(
 			orth_end,
 			c,
 			(
-				0.1* DrawComponent.AREA_ADDON_THICKNESS
+				DrawComponent.AREA_ADDON_THICKNESS*0.075
 				if area.owner_id == GameSimulationComponent.PLAYER_ID else
 				DrawComponent.AREA_ADDON_THICKNESS),
 				true

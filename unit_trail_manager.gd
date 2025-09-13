@@ -2,7 +2,7 @@ extends Node2D
 class_name TrailManager
 
 const MAX_TRAIL_SEGMENTS_PER_UNIT: int = 10
-const TRAIL_FADE_TIME: float = 0.5  # How long trails last
+const TRAIL_FADE_TIME: float = 0.25  # How long trails last
 const TRAIL_WIDTH: float = 0.5     # Width of trail lines
 const MIN_SEGMENT_LENGTH: float = 1.0  # Minimum distance for a trail segment
 const MAX_ALPHA: float = 1.0

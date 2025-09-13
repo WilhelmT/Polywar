@@ -1,1 +1,9 @@
 res://main.tscn
+res://static_background_drawer.gd
+res://map_generator.gd
+res://draw_component.tscn
+res://draw_component.gd
+res://unit_trail_manager.gd
+res://unit_layer.gd
+res://polygon_layer3.gd
+res://game_simulation_component.gd

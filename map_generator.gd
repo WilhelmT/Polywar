@@ -3,7 +3,7 @@ extends Node
 
 var rng = RandomNumberGenerator.new()
 
-const BANK_OFFSET: float = 10.0
+const BANK_OFFSET: float = 8.0
 
 const GENERATION_ATTEMPTS: int = 100
 

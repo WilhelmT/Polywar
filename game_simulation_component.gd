@@ -7,7 +7,7 @@ const USE_UNION: bool = false
 const PLAYER_ID: int = 0
 
 # Static Simulation Variables
-const EXPANSION_SPEED: float = 12.0*Global.GLOBAL_SPEED
+const EXPANSION_SPEED: float = 8.0*Global.GLOBAL_SPEED
 const MIN_EXPANSION_SPEED: float = 1
 const MAX_EXPANSION_SPEED: float = 500
 
@@ -89,7 +89,7 @@ const SHOCK_TROOPS: bool = false
 const TERRAIN_FORCES: bool = false
 const SABOTEUR: bool = false
 const ENCIRCLEMENT_CORPS: bool = true
-const ARTILLERY: bool = true
+const ARTILLERY: bool = false
 
 # Stats influencing upgrades
 const SHOCK_TROOPS_MULTIPLIER = 2.0

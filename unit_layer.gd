@@ -77,13 +77,10 @@ class Agent:
 var _agents:			Array[Agent]	= []
 var _fake_agents:		Array[Agent]	= []  # Fake units for defensive lines
 var _front_by_area:		Dictionary		= {}
-var _trail_manager:		TrailManager = null
+@onready var _trail_manager:		TrailManager = $UnitTrailManager
 
 func _ready() -> void:
 	_nav_map = get_world_2d().get_navigation_map()
-	
-	# Get reference to trail manager
-	_trail_manager = get_node_or_null("TrailManager")
 	
 	_setup_multimesh()
 	
