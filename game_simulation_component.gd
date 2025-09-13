@@ -1133,7 +1133,7 @@ func _precalculate_point_strength_multipliers(
 	var area_strength: float = all_area_strengths_raw[area]
 	
 	for point: Vector2 in polygon:
-		var highest_multiplier: float = 1.0  # Default when not in enemy territory
+		var highest_multiplier: float = -INF  # Default when not in enemy territory
 		
 		# 1. Multiplier from strength diff
 		for enemy_area: Area in areas:
@@ -1152,6 +1152,8 @@ func _precalculate_point_strength_multipliers(
 					)
 					if multiplier > highest_multiplier:
 						highest_multiplier = multiplier
+		if highest_multiplier == -INF:
+			highest_multiplier = 1.0
 
 		# 2. Multiplier from air denial
 		if area.owner_id != PLAYER_ID:

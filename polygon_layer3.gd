@@ -228,7 +228,7 @@ func _draw_player_polyline_holdings(
 ) -> void:
 	const SPACING: float = DrawComponent.AREA_ADDON_THICKNESS * 3.0 / 1.5
 	const AMP: float = SPACING * 0.25
-	var width: float = DrawComponent.AREA_ADDON_THICKNESS * 0.15
+	var width: float = DrawComponent.AREA_ADDON_THICKNESS * 0.1
 
 
 		
