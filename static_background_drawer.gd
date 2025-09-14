@@ -24,13 +24,15 @@ const LIGHT_BRIGHT: float			= 1.00	# brightest (× base colour)
 const FACET_JITTER_DEG: float			= 12.0	# ± rotation for the “normal”
 
 # Mountains
-const MTN_POINT_DENSITY: float		= 1	# px² per extra seed point (larger → fewer facets)
 const MTN_BRIGHT_MIN: float			= 0.0		# brightest
 const MTN_BRIGHT_MAX: float			= 1.0		# darkest
 const MTN_JITTER_DEG: float			= 25.0		# ± random yaw on the fake normal
 const MTN_SHADOW_OFFSET: Vector2	= Vector2(24, 24)	# tweak to taste
 const MTN_SHADOW_DARKEN: float		= 0.375				# 0 = black, 1 = no darken
 const PROFILE_MTN: bool				= true
+
+const MTN_TEX_PADDING_PX: int = 0
+const MTN_TEX_SUBPIXEL_OFFSET: float = 0.5
 
 # Mountain ridges configuration
 const RIDGE_LEVELS: int = 2
@@ -49,6 +51,7 @@ const RIDGE_SECOND_MAX_STEPS: int = 16
 const RIDGE_SECOND_BIAS: float = 0.35
 const RIDGE_MAIN_DISTANCE_BIAS: float = 2.0
 const RIDGE_MAIN_NORMAL_DOMINANCE: float = 0.5
+
 
 # ─── River-bed rocks ───────────────────────────────────────────────
 #const WATER_BASE: Color = Color(0.18, 0.24, 0.27, 1.0) # muted blue-grey
@@ -96,8 +99,7 @@ var _tree_shadow_instances: Array[Dictionary] = []  # {vertices, color}
 var _tree_canopy_instances: Array[Dictionary] = []  # {vertices, color}
 
 # MultiMesh for mountains
-var _mountain_multimesh: MultiMesh
-var _mountain_instances: Array[Dictionary] = []  # {transform, color}
+var _mountain_textures: Dictionary = {}  # poly_id -> {"texture": ImageTexture, "aabb": Rect2}
 
 # ─── Plains texture (procedural mottled parchment) ─────────────────────────────
 const PLAINS_TEX_SIZE: int = 2048
@@ -158,11 +160,6 @@ func _setup_multimeshes() -> void:
 	_tree_canopy_multimesh.use_colors = true
 	_tree_canopy_multimesh.instance_count = 1
 	
-	# Mountain MultiMesh (will be set up with custom mesh later)
-	_mountain_multimesh = MultiMesh.new()
-	_mountain_multimesh.transform_format = MultiMesh.TRANSFORM_2D
-	_mountain_multimesh.use_colors = true
-	_mountain_multimesh.instance_count = 0
 
 func _create_quad_mesh() -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
@@ -233,48 +230,6 @@ func _draw_textured_area(
 	if tri_pts.size() < 3:
 		draw_colored_polygon(polygon, base_color.lerp(edge_color, 0.5))
 
-
-# Old _draw_trees() function removed - now using MultiMesh
-
-func _create_mountain_mesh() -> ArrayMesh:
-	var mesh: ArrayMesh = ArrayMesh.new()
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var colors: PackedColorArray = PackedColorArray()
-	
-	# Add all mountain polygons (triangulated if needed) to the mesh
-	for instance: Dictionary in _mountain_instances:
-		var poly: PackedVector2Array = instance["vertices"]
-		var col: Color = instance["color"]
-		if poly.size() == 3:
-			vertices.append(Vector3(poly[0].x, poly[0].y, 0))
-			vertices.append(Vector3(poly[1].x, poly[1].y, 0))
-			vertices.append(Vector3(poly[2].x, poly[2].y, 0))
-			colors.append(col)
-			colors.append(col)
-			colors.append(col)
-		else:
-			if poly.size() > 3:
-				var idxs: PackedInt32Array = Geometry2D.triangulate_polygon(poly)
-				for i_t: int in range(0, idxs.size(), 3):
-					var a: Vector2 = poly[idxs[i_t]]
-					var b: Vector2 = poly[idxs[i_t + 1]]
-					var c: Vector2 = poly[idxs[i_t + 2]]
-					vertices.append(Vector3(a.x, a.y, 0))
-					vertices.append(Vector3(b.x, b.y, 0))
-					vertices.append(Vector3(c.x, c.y, 0))
-					colors.append(col)
-					colors.append(col)
-					colors.append(col)
-	
-	if vertices.size() > 0:
-		arrays[Mesh.ARRAY_VERTEX] = vertices
-		arrays[Mesh.ARRAY_COLOR] = colors
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	
-	return mesh
 
 func _create_tree_combined_mesh() -> ArrayMesh:
 	# Legacy function kept for compatibility; now returns an empty mesh
@@ -798,74 +753,39 @@ func _prepare_trees() -> void:
 	_tree_canopy_multimesh.set_instance_transform_2d(0, Transform2D.IDENTITY)
 	_tree_canopy_multimesh.set_instance_color(0, Color.WHITE)
 
-# Removed unused _create_triangle_transform() - no longer needed with single mesh approach
 
 func _prepare_mountains() -> void:
-	_mountain_instances.clear()
-	_rng.randomize()
+	_mountain_textures.clear()
 	
-	var collected = false
+	# Deterministic seed per run not required for textures; avoid randomize here
+	
 	for original_area: Area in map.original_walkable_areas:
 		var poly_id: int = original_area.polygon_id
 		if map.terrain_map[poly_id] != "mountains":
 			continue
-		
-		#if collected:
-			#continue
 		var mountain_polygon: PackedVector2Array = original_area.polygon
 		mountain_polygon = _clip_river_polygons(mountain_polygon, original_area)
-		_collect_mountain_triangles(mountain_polygon)
-		collected = true
-	
-	# Create a single mesh with all mountain triangles
-	_mountain_multimesh.mesh = _create_mountain_mesh()
-	_mountain_multimesh.instance_count = 1
-	_mountain_multimesh.set_instance_transform_2d(0, Transform2D.IDENTITY)
-	_mountain_multimesh.set_instance_color(0, Color.WHITE)
+		var tex_entry: Dictionary = _build_mountain_texture_entry(poly_id, mountain_polygon)
+		if tex_entry.is_empty() == false:
+			_mountain_textures[poly_id] = tex_entry
 
-func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
-	# Skip degenerate input
+# ─────────────────────────── Mountain texture helpers ───────────────────────────
+func _build_mountain_texture_entry(poly_id: int, polygon: PackedVector2Array) -> Dictionary:
+	var result: Dictionary = {}
 	if polygon.size() < 3:
-		return
-	# ─ profiling ─
+		return result
 	var t_total0: int = 0
 	if PROFILE_MTN:
 		t_total0 = Time.get_ticks_msec()
-	
-	var base: Color = Global.get_color_for_terrain("mountains")
-	
-	var base_hsv: Vector3 = Vector3(base.h, base.s, base.v)
-	var base_hue: float = base_hsv.x
-	var base_col: Color = Color.from_hsv(base_hue, base_hsv.y, base_hsv.z, base.a)
-	
-	# ── seed points ────────────────────────────────────────────────────
-	var t_seed0: int = 0
-	var t_seed_ms: int = 0
-	var seed_added: int = 0
-	if PROFILE_MTN:
-		t_seed0 = Time.get_ticks_msec()
-	var pts: PackedVector2Array = polygon.duplicate()	# rim
-	var area: float = GeometryUtils.calculate_polygon_area(polygon)
-	var max_points_to_test: int = int(area / MTN_POINT_DENSITY)
-
-	var aabb: Rect2 = GeometryUtils.calculate_bounding_box(polygon)
-	var tries: int = 0
-	while tries < max_points_to_test:
-		tries += 1
-		var p: Vector2 = Vector2(
-			_rng.randf_range(aabb.position.x, aabb.position.x + aabb.size.x),
-			_rng.randf_range(aabb.position.y, aabb.position.y + aabb.size.y)
-		)
-		if Geometry2D.is_point_in_polygon(p, polygon):
-			pts.append(p)
-			if PROFILE_MTN:
-				seed_added += 1
-	if PROFILE_MTN:
-		t_seed_ms = Time.get_ticks_msec() - t_seed0
-	
-	# ── triangulate & collect instances ───────────────────────────────────────────
+	var aabb_world: Rect2 = GeometryUtils.calculate_bounding_box(polygon)
+	var pad: int = MTN_TEX_PADDING_PX
+	var padded_pos: Vector2 = Vector2(aabb_world.position.x - float(pad), aabb_world.position.y - float(pad))
+	var padded_size: Vector2 = Vector2(aabb_world.size.x + float(pad * 2), aabb_world.size.y + float(pad * 2))
+	var aabb_padded: Rect2 = Rect2(padded_pos, padded_size)
+	var tex_w: int = int(ceil(max(1.0, aabb_padded.size.x)))
+	var tex_h: int = int(ceil(max(1.0, aabb_padded.size.y)))
+	var img: Image = Image.create(tex_w, tex_h, false, Image.FORMAT_RGBA8)
 	var centroid: Vector2 = GeometryUtils.calculate_centroid(polygon)
-	# Build ridge segments once for this polygon and prepare a fast index
 	var t_ridge0: int = 0
 	var t_ridge_ms: int = 0
 	if PROFILE_MTN:
@@ -873,123 +793,180 @@ func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
 	var ridges: Array[Dictionary] = _build_ridges_for_polygon(polygon)
 	if PROFILE_MTN:
 		t_ridge_ms = Time.get_ticks_msec() - t_ridge0
-	var t_tri0: int = 0
-	var t_tri_ms: int = 0
-	if PROFILE_MTN:
-		t_tri0 = Time.get_ticks_msec()
-	var idx: PackedInt32Array = Geometry2D.triangulate_delaunay(pts)
-	if PROFILE_MTN:
-		t_tri_ms = Time.get_ticks_msec() - t_tri0
-	
-	# First pass: collect candidate triangles, midpoints, and distance to nearest edge
-	var t_first0: int = 0
-	var t_first_ms: int = 0
-	var t_intersect_ms: int = 0
-	var t_edge_ms: int = 0
-	var n_intersects: int = 0
-	var n_edge_tests: int = 0
-	if PROFILE_MTN:
-		t_first0 = Time.get_ticks_msec()
-	var tri_records: Array = []
+	var base: Color = Global.get_color_for_terrain("mountains")
+	var base_hsv: Vector3 = Vector3(base.h, base.s, base.v)
+	var base_col: Color = Color.from_hsv(base_hsv.x, base_hsv.y, base_hsv.z, base.a)
+	var distances: PackedFloat32Array = PackedFloat32Array()
+	distances.resize(tex_w * tex_h)
 	var max_edge_dist: float = 0.0
-	for i: int in range(0, idx.size(), 3):
-		var tri_raw: PackedVector2Array = PackedVector2Array([
-			pts[idx[i]], pts[idx[i + 1]], pts[idx[i + 2]]
-		])
-		var mid: Vector2 = (tri_raw[0] + tri_raw[1] + tri_raw[2]) / 3.0
-		if Geometry2D.is_point_in_polygon(mid, polygon):
-			var t_int0: int = 0
+	var tested_pixels: int = 0
+	var inside_pixels: int = 0
+	var edge_tests: int = 0
+	var t_pass1_0: int = 0
+	var t_pass1_ms: int = 0
+	var t_pp_ms: int = 0
+	var t_edge_ms: int = 0
+	# Pass 1: compute edge distances and max
+	var y1: int = 0
+	while y1 < tex_h:
+		var x1: int = 0
+		while x1 < tex_w:
 			if PROFILE_MTN:
-				t_int0 = Time.get_ticks_msec()
-			var tri_clip: PackedVector2Array = GeometryUtils.find_largest_polygon(
-				Geometry2D.intersect_polygons(tri_raw, polygon)
-			)
+				if y1 == 0 and x1 == 0:
+					t_pass1_0 = Time.get_ticks_msec()
+			var world_p: Vector2 = Vector2(aabb_padded.position.x + float(x1) + MTN_TEX_SUBPIXEL_OFFSET, aabb_padded.position.y + float(y1) + MTN_TEX_SUBPIXEL_OFFSET)
+			var t_pp0: int = 0
 			if PROFILE_MTN:
-				n_intersects += 1
-				t_intersect_ms += Time.get_ticks_msec() - t_int0
-			if tri_clip.size() >= 3:
-				# compute light factor for this triangle
-				var n: Vector2 = (mid - centroid).normalized()
-				if n == Vector2.ZERO:
-					n = Vector2(0.0, -1.0)
-				var yaw: float = deg_to_rad(_rng.randf_range(-MTN_JITTER_DEG, MTN_JITTER_DEG))
-				var n_rot: Vector2 = Vector2(
-					n.x * cos(yaw) - n.y * sin(yaw),
-					n.x * sin(yaw) + n.y * cos(yaw)
-				)
-				var d: float = clamp(n_rot.dot(-Global.LIGHT_DIR), -1.0, 1.0)
-				var f: float = MTN_BRIGHT_MIN + (MTN_BRIGHT_MAX - MTN_BRIGHT_MIN) * (d + 1.0) * 0.5
-				# distance to nearest polygon edge (simple scan)
-				var t_edge0: int = 0
+				t_pp0 = Time.get_ticks_msec()
+			var inside: bool = Geometry2D.is_point_in_polygon(world_p, polygon)
+			if PROFILE_MTN:
+				t_pp_ms += Time.get_ticks_msec() - t_pp0
+			var idx: int = y1 * tex_w + x1
+			if inside:
+				var t_e0: int = 0
 				if PROFILE_MTN:
-					t_edge0 = Time.get_ticks_msec()
-				var min_d: float = _nearest_edge_distance(mid, polygon)
+					t_e0 = Time.get_ticks_msec()
+				var d: float = _nearest_edge_distance(world_p, polygon)
 				if PROFILE_MTN:
-					t_edge_ms += Time.get_ticks_msec() - t_edge0
-				if min_d > max_edge_dist:
-					max_edge_dist = min_d
-				var rec: Dictionary = {}
-				rec["tri"] = tri_clip
-				rec["mid"] = mid
-				rec["edge_dist"] = min_d
-				rec["light_f"] = f
-				tri_records.append(rec)
-		else:
-			pass
+					t_edge_ms += Time.get_ticks_msec() - t_e0
+				edge_tests += 1
+				distances[idx] = d
+				if d > max_edge_dist:
+					max_edge_dist = d
+				inside_pixels += 1
+			else:
+				distances[idx] = -1.0
+			tested_pixels += 1
+			x1 += 1
+		y1 += 1
 	if PROFILE_MTN:
-		t_first_ms = Time.get_ticks_msec() - t_first0
-	# Second pass: apply ridge shading, base-proximity darkening and record instances
-	var t_second0: int = 0
-	var t_second_ms: int = 0
+		t_pass1_ms = Time.get_ticks_msec() - t_pass1_0
+	# Pass 2: shade pixels
+	var y2: int = 0
+	var t_pass2_0: int = 0
+	var t_pass2_ms: int = 0
 	var t_ridge_lookup_ms: int = 0
 	if PROFILE_MTN:
-		t_second0 = Time.get_ticks_msec()
-	print("polygon.size() ", polygon.size())
-	print("ridges.size ", ridges.size())
-	for rec in tri_records:
-		var tri: PackedVector2Array = rec["tri"]
-		var f_light: float = rec["light_f"]
-		var edge_dist: float = rec["edge_dist"]
-		var mid_pt: Vector2 = rec["mid"]
-		var t_norm: float = 0.0
-		if max_edge_dist > 0.0:
-			t_norm = edge_dist / max_edge_dist
-		else:
-			t_norm = 0.0
-		var eased: float = pow(t_norm, 1/2.0)
-		eased = min(eased, 0.75)
-
-		var t0q: int = 0
-		if PROFILE_MTN:
-			t0q = Time.get_ticks_msec()
-		var ridge_pair: Dictionary = _ridge_multipliers_at(mid_pt, ridges)
-		if PROFILE_MTN:
-			t_ridge_lookup_ms += (Time.get_ticks_msec() - t0q)
-		var ridge_dist_mul: float = ridge_pair["distance"]
-		var ridge_norm_mul: float = ridge_pair["normal"]
-		
-		var col: Color = base_col * (0.75*(ridge_norm_mul) + 0.75*f_light)
-		col = _composite_over_color(col, Global.background_color)
-		
-		col = col * min(1.0,(0.5 + eased * 0.5 + min(0.75, 3*(pow(eased, 2.0)) * pow(1-ridge_dist_mul, 2.0))))
-		col.a = 1.0
-		_mountain_instances.append({
-			"vertices": tri,
-			"color": col
-		})
+		t_pass2_0 = Time.get_ticks_msec()
+	while y2 < tex_h:
+		var x2: int = 0
+		while x2 < tex_w:
+			var idx2: int = y2 * tex_w + x2
+			var d2: float = distances[idx2]
+			if d2 >= 0.0:
+				var world_p2: Vector2 = Vector2(aabb_padded.position.x + float(x2) + MTN_TEX_SUBPIXEL_OFFSET, aabb_padded.position.y + float(y2) + MTN_TEX_SUBPIXEL_OFFSET)
+				var t_r0: int = 0
+				if PROFILE_MTN:
+					t_r0 = Time.get_ticks_msec()
+				var col: Color = _compute_mountain_pixel_color(world_p2, centroid, base_col, ridges, d2, max_edge_dist)
+				if PROFILE_MTN:
+					t_ridge_lookup_ms += Time.get_ticks_msec() - t_r0
+				img.set_pixel(x2, y2, col)
+			else:
+				img.set_pixel(x2, y2, Color(0.0, 0.0, 0.0, 0.0))
+			x2 += 1
+		y2 += 1
 	if PROFILE_MTN:
-		t_second_ms = Time.get_ticks_msec() - t_second0
+		t_pass2_ms = Time.get_ticks_msec() - t_pass2_0
+	var tex: ImageTexture = ImageTexture.create_from_image(img)
+	result["texture"] = tex
+	result["aabb"] = aabb_padded
+	if PROFILE_MTN:
 		var t_total_ms: int = Time.get_ticks_msec() - t_total0
-		print("[MTN] poly stats: seeds=", seed_added,
-			" seed_ms=", t_seed_ms,
-			" ridges_ms=", t_ridge_ms,
-			" delaunay_ms=", t_tri_ms,
-			" first_ms=", t_first_ms, " (intersect_ms=", t_intersect_ms, ", edge_ms=", t_edge_ms, ", edge_tests=", n_edge_tests, ")",
-			" second_ms=", t_second_ms, " (ridge_ms=", t_ridge_lookup_ms, ")",
-			" total_ms=", t_total_ms,
-			" tris=", tri_records.size(),
-			" pts=", pts.size(),
-			")")
+		print("[MTN/TEX] poly_id=", poly_id,
+			" tex=", tex_w, "x", tex_h,
+			" tested=", tested_pixels,
+			" inside=", inside_pixels,
+			" ridge_ms=", t_ridge_ms,
+			" pass1_ms=", t_pass1_ms, " (pp_ms=", t_pp_ms, ", edge_ms=", t_edge_ms, ", edge_tests=", edge_tests, ")",
+			" pass2_ms=", t_pass2_ms, " (ridge_ms=", t_ridge_lookup_ms, ")",
+			" total_ms=", t_total_ms)
+	return result
+
+func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Color, ridges: Array[Dictionary], edge_dist: float, max_edge_dist: float) -> Color:
+	var dir_vec: Vector2 = (p - centroid)
+	var n: Vector2
+	if dir_vec.length() == 0.0:
+		n = Vector2(0.0, -1.0)
+	else:
+		n = dir_vec.normalized()
+	var yaw: float = deg_to_rad(_rng.randf_range(-MTN_JITTER_DEG, MTN_JITTER_DEG))
+	var n_rot: Vector2 = Vector2(
+		n.x * cos(yaw) - n.y * sin(yaw),
+		n.x * sin(yaw) + n.y * cos(yaw)
+	)
+	var d_l: float = n_rot.dot(-Global.LIGHT_DIR)
+	if d_l < -1.0:
+		d_l = -1.0
+	else:
+		if d_l > 1.0:
+			d_l = 1.0
+	var f_light: float = MTN_BRIGHT_MIN + (MTN_BRIGHT_MAX - MTN_BRIGHT_MIN) * (d_l + 1.0) * 0.5
+	var ridge_pair: Dictionary = _ridge_multipliers_at(p, ridges)
+	var ridge_dist_mul: float = float(ridge_pair["distance"])
+	var ridge_norm_mul: float = float(ridge_pair["normal"])
+	var t_norm: float = 0.0
+	if max_edge_dist > 0.0:
+		t_norm = edge_dist / max_edge_dist
+	else:
+		t_norm = 0.0
+	var eased: float = pow(t_norm, 1.0 / 2.0)
+	eased = min(eased, 0.75)
+	var col: Color = base_col * (0.75 * ridge_norm_mul + 0.75 * f_light)
+	col = _composite_over_color(col, Global.background_color)
+	var prox_mul: float = 0.5 + eased * 0.5 + min(0.75, 3.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 2.0))
+	if prox_mul > 1.0:
+		prox_mul = 1.0
+	else:
+		prox_mul = prox_mul
+	col = col * prox_mul
+	col.a = 1.0
+	return col
+
+func _draw_textured_polygon_with_aabb(polygon: PackedVector2Array, texture: Texture2D, aabb: Rect2) -> void:
+	if texture == null:
+		return
+	var centroid: Vector2 = GeometryUtils.calculate_centroid(polygon)
+	var tri_pts: PackedVector2Array = PackedVector2Array()
+	var tri_uvs: PackedVector2Array = PackedVector2Array()
+	var i: int = 0
+	while i < polygon.size():
+		var cur: Vector2 = polygon[i]
+		var next: Vector2 = polygon[(i + 1) % polygon.size()]
+		tri_pts.append(centroid)
+		tri_pts.append(cur)
+		tri_pts.append(next)
+		var uv_c: Vector2 = Vector2(
+			(centroid.x - aabb.position.x) / max(aabb.size.x, 1.0),
+			(centroid.y - aabb.position.y) / max(aabb.size.y, 1.0)
+		)
+		var uv_1: Vector2 = Vector2(
+			(cur.x - aabb.position.x) / max(aabb.size.x, 1.0),
+			(cur.y - aabb.position.y) / max(aabb.size.y, 1.0)
+		)
+		var uv_2: Vector2 = Vector2(
+			(next.x - aabb.position.x) / max(aabb.size.x, 1.0),
+			(next.y - aabb.position.y) / max(aabb.size.y, 1.0)
+		)
+		tri_uvs.append(uv_c)
+		tri_uvs.append(uv_1)
+		tri_uvs.append(uv_2)
+		i += 1
+	var j: int = 0
+	while j < tri_pts.size():
+		if j + 2 >= tri_pts.size():
+			break
+		var tri: PackedVector2Array = PackedVector2Array([
+			tri_pts[j], tri_pts[j + 1], tri_pts[j + 2]
+		])
+		var cols: PackedColorArray = PackedColorArray([
+			Color(1.0, 1.0, 1.0, 1.0), Color(1.0, 1.0, 1.0, 1.0), Color(1.0, 1.0, 1.0, 1.0)
+		])
+		var uvs: PackedVector2Array = PackedVector2Array([
+			tri_uvs[j], tri_uvs[j + 1], tri_uvs[j + 2]
+		])
+		draw_polygon(tri, cols, uvs, texture)
+		j += 3
 
 
 # ═══════════════  Drawing helpers  ═════════════════════════════════════════
@@ -2179,20 +2156,20 @@ func _draw() -> void:
 		draw_background()
 		_draw_mountain_black_bases()
 	else:
-		# Draw MultiMesh mountains
-		if _mountain_multimesh and _mountain_multimesh.instance_count > 0:
-			# fill mountain areas with black first
-			draw_multimesh(_mountain_multimesh, null)
+		# Draw mountain textures
+		for original_area: Area in map.original_walkable_areas:
+			var poly_id_draw: int = original_area.polygon_id
+			if map.terrain_map[poly_id_draw] != "mountains":
+				continue
+			if _mountain_textures.has(poly_id_draw):
+				var entry: Dictionary = _mountain_textures[poly_id_draw]
+				var mountain_polygon_draw: PackedVector2Array = _clip_river_polygons(original_area.polygon, original_area)
+				_draw_textured_polygon_with_aabb(mountain_polygon_draw, entry["texture"], entry["aabb"])
 		
 		_draw_rivers()
 		
-		if _mountain_multimesh and _mountain_multimesh.instance_count > 0:
-			#for original_area in map.original_walkable_areas:	
-				#if map.terrain_map[original_area.polygon_id] == "mountains":
-					#_draw_outline(original_area, 0.1)
-						
-			# Draw self-shadows directly on mountains so rivers overlapping mountains also receive shadow there
-			_draw_mountain_self_shadows()
+		# Draw self-shadows directly on mountains so rivers overlapping mountains also receive shadow there
+		_draw_mountain_self_shadows()
 		
 		
 	

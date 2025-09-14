@@ -1,5 +1,3 @@
-res://main.tscn
 res://static_background_drawer.gd
+res://main.tscn
 res://draw_component.tscn
-res://draw_component.gd
-res://game_simulation_component.gd
