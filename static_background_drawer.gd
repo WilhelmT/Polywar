@@ -13,7 +13,7 @@ const TREE_MAX_SIDES: int						= 8		# Reduced for performance
 const TREE_CANOPY_BASE: Color					= Color(0.13, 0.32, 0.13, 1.0)  # will vary a bit
 const TREE_SHADOW_DARKEN: float					= 0.125
 const TREE_DENSITY: float						= 0.1	# ↑ denser
-const MAX_TREES_PER_AREA: int = 0					# Prevent excessive trees
+const MAX_TREES_PER_AREA: int = 10000					# Prevent excessive trees
 const MAX_TREE_ATTEMPTS: int = 10000					# Limit total attempts per area
 const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
 const TREE_TRUNK_OFFSET: Vector2					= Vector2(0, TREE_MIN_RADIUS)
@@ -38,17 +38,17 @@ const RIDGE_LEVEL_WIDTH_FACTOR: float = 2.0
 const RIDGE_NORMAL_STRENGTH: float = 0.5
 const RIDGE_DISTANCE_STRENGTH: float = 0.05
 const RIDGE_EPS: float = 0.0001
-const RIDGE_TRACE_STEP_PX: float = 8.0
+const RIDGE_TRACE_STEP_PX: float = 16.0
 const RIDGE_CURVE_MAX_DEG: float = 48.0
 const RIDGE_MAIN_NOISE_DEG: float = 32.0
 const RIDGE_MAIN_NOISE_FREQ: float = 1.0 / 180.0
+const RIDGE_MAIN_MAX_STEPS: int = 16
 const RIDGE_SECOND_NOISE_DEG: float = 16.0
 const RIDGE_SECOND_NOISE_FREQ: float = 1.0 / 140.0
-const RIDGE_MAX_STEPS: int = 2048
+const RIDGE_SECOND_MAX_STEPS: int = 16
 const RIDGE_SECOND_BIAS: float = 0.35
 const RIDGE_MAIN_DISTANCE_BIAS: float = 2.0
 const RIDGE_MAIN_NORMAL_DOMINANCE: float = 0.5
-const EDGE_GRID_CELL: float = 32.0
 
 # ─── River-bed rocks ───────────────────────────────────────────────
 #const WATER_BASE: Color = Color(0.18, 0.24, 0.27, 1.0) # muted blue-grey
@@ -98,22 +98,6 @@ var _tree_canopy_instances: Array[Dictionary] = []  # {vertices, color}
 # MultiMesh for mountains
 var _mountain_multimesh: MultiMesh
 var _mountain_instances: Array[Dictionary] = []  # {transform, color}
-var _prof_fast_queries: int = 0
-var _prof_fast_candidates: int = 0
-var _prof_fast_cells: int = 0
-var _prof_fast_rings: int = 0
-var _prof_fast_aabb_skips: int = 0
-var _prof_fast_cp_calls: int = 0
-var _prof_fast_time_ms: int = 0
-var _prof_fast_max_candidates: int = 0
-var _prof_fast_max_cells: int = 0
-var _prof_fast_max_rings: int = 0
-var _prof_fast_max_cp_calls: int = 0
-var _prof_fast_main_scan_ms: int = 0
-var _prof_fast_main_candidates: int = 0
-var _prof_edge_queries: int = 0
-var _prof_edge_cells: int = 0
-var _prof_edge_time_ms: int = 0
 
 # ─── Plains texture (procedural mottled parchment) ─────────────────────────────
 const PLAINS_TEX_SIZE: int = 2048
@@ -826,8 +810,8 @@ func _prepare_mountains() -> void:
 		if map.terrain_map[poly_id] != "mountains":
 			continue
 		
-		if collected:
-			continue
+		#if collected:
+			#continue
 		var mountain_polygon: PackedVector2Array = original_area.polygon
 		mountain_polygon = _clip_river_polygons(mountain_polygon, original_area)
 		_collect_mountain_triangles(mountain_polygon)
@@ -838,8 +822,6 @@ func _prepare_mountains() -> void:
 	_mountain_multimesh.instance_count = 1
 	_mountain_multimesh.set_instance_transform_2d(0, Transform2D.IDENTITY)
 	_mountain_multimesh.set_instance_color(0, Color.WHITE)
-	if PROFILE_MTN:
-		print("[MTN] fast queries:", _prof_fast_queries, " avg candidates/query:", (_prof_fast_candidates / float(max(_prof_fast_queries,1))))
 
 func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
 	# Skip degenerate input
@@ -889,9 +871,6 @@ func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
 	if PROFILE_MTN:
 		t_ridge0 = Time.get_ticks_msec()
 	var ridges: Array[Dictionary] = _build_ridges_for_polygon(polygon)
-	var ridge_segments: Array[Dictionary] = _build_ridge_segment_cache(ridges)
-	var ridge_index: Dictionary = _build_ridge_grid_index(ridge_segments, 32.0)
-	var edge_index: Dictionary = _build_edge_grid_index(polygon, EDGE_GRID_CELL)
 	if PROFILE_MTN:
 		t_ridge_ms = Time.get_ticks_msec() - t_ridge0
 	var t_tri0: int = 0
@@ -940,11 +919,11 @@ func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
 				)
 				var d: float = clamp(n_rot.dot(-Global.LIGHT_DIR), -1.0, 1.0)
 				var f: float = MTN_BRIGHT_MIN + (MTN_BRIGHT_MAX - MTN_BRIGHT_MIN) * (d + 1.0) * 0.5
-				# distance to nearest polygon edge (grid-accelerated, exact result)
+				# distance to nearest polygon edge (simple scan)
 				var t_edge0: int = 0
 				if PROFILE_MTN:
 					t_edge0 = Time.get_ticks_msec()
-				var min_d: float = _nearest_edge_distance_fast(mid, polygon, edge_index, EDGE_GRID_CELL, n_edge_tests)
+				var min_d: float = _nearest_edge_distance(mid, polygon)
 				if PROFILE_MTN:
 					t_edge_ms += Time.get_ticks_msec() - t_edge0
 				if min_d > max_edge_dist:
@@ -965,6 +944,8 @@ func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
 	var t_ridge_lookup_ms: int = 0
 	if PROFILE_MTN:
 		t_second0 = Time.get_ticks_msec()
+	print("polygon.size() ", polygon.size())
+	print("ridges.size ", ridges.size())
 	for rec in tri_records:
 		var tri: PackedVector2Array = rec["tri"]
 		var f_light: float = rec["light_f"]
@@ -981,9 +962,8 @@ func _collect_mountain_triangles(polygon: PackedVector2Array) -> void:
 		var t0q: int = 0
 		if PROFILE_MTN:
 			t0q = Time.get_ticks_msec()
-		var ridge_pair: Dictionary = _ridge_multipliers_at_fast(mid_pt, ridge_segments, ridge_index)
+		var ridge_pair: Dictionary = _ridge_multipliers_at(mid_pt, ridges)
 		if PROFILE_MTN:
-			_prof_fast_queries += 1
 			t_ridge_lookup_ms += (Time.get_ticks_msec() - t0q)
 		var ridge_dist_mul: float = ridge_pair["distance"]
 		var ridge_norm_mul: float = ridge_pair["normal"]
@@ -1347,6 +1327,16 @@ func _build_ridges_for_polygon(polygon: PackedVector2Array) -> Array[Dictionary]
 		RIDGE_TRACE_STEP_PX, RIDGE_CURVE_MAX_DEG,
 		RIDGE_MAIN_NOISE_DEG, RIDGE_MAIN_NOISE_FREQ
 	)
+	var main_len_1: int = 0
+	var main_len_2: int = 0
+	if main_poly_1.size() >= 2:
+		main_len_1 = main_poly_1.size() - 1
+	else:
+		main_len_1 = 0
+	if main_poly_2.size() >= 2:
+		main_len_2 = main_poly_2.size() - 1
+	else:
+		main_len_2 = 0
 	for k: int in range(main_poly_1.size() - 1):
 		var rec_m1: Dictionary = {}
 		rec_m1["a"] = main_poly_1[k]
@@ -1362,6 +1352,8 @@ func _build_ridges_for_polygon(polygon: PackedVector2Array) -> Array[Dictionary]
 	if RIDGE_LEVELS <= 1:
 		return ridges
 	# Secondary ridges: random walk from remaining vertices until they hit any ridge (main or earlier secondaries)
+	var secondary_total_segments: int = 0
+	var secondary_count: int = 0
 	for vi: int in range(polygon.size()):
 		if vi == i_a or vi == i_b:
 			continue
@@ -1394,57 +1386,22 @@ func _build_ridges_for_polygon(polygon: PackedVector2Array) -> Array[Dictionary]
 			start_dir
 		)
 		var use_poly: PackedVector2Array = sec_poly
+		var sec_len: int = 0
+		if use_poly.size() >= 2:
+			sec_len = use_poly.size() - 1
+		else:
+			sec_len = 0
+		secondary_total_segments += sec_len
+		secondary_count += 1
 		for s: int in range(use_poly.size() - 1):
 			var rec_s: Dictionary = {}
 			rec_s["a"] = use_poly[s]
 			rec_s["b"] = use_poly[s + 1]
 			rec_s["level"] = 2
 			ridges.append(rec_s)
+	if PROFILE_MTN:
+		print("[MTN] main_len1=", main_len_1, " main_len2=", main_len_2, " secondary_total=", secondary_total_segments, " secondary_count=", secondary_count)
 	return ridges
-
-func _nearest_intersection_on_ray(
-		p_start: Vector2,
-		ray_dir: Vector2,
-		max_len: float,
-		polygon: PackedVector2Array,
-		blockers: Array[Dictionary]
-	) -> Vector2:
-	var dir_n: Vector2 = ray_dir
-	if dir_n.length() <= 0.0:
-		return p_start
-	dir_n = dir_n.normalized()
-	var p_end: Vector2 = p_start + dir_n * max_len
-	var best_pt: Vector2 = p_end
-	var best_d: float = p_start.distance_to(p_end)
-	# Intersect with polygon edges
-	for i_e: int in range(polygon.size()):
-		var e1: Vector2 = polygon[i_e]
-		var e2: Vector2 = polygon[(i_e + 1) % polygon.size()]
-		var ip_any: Variant = Geometry2D.segment_intersects_segment(p_start, p_end, e1, e2)
-		var ip: Vector2 = ip_any if ip_any is Vector2 else Vector2.ZERO
-		if ip != Vector2.ZERO:
-			var d: float = p_start.distance_to(ip)
-			if d > RIDGE_EPS:
-				if d < best_d:
-					best_d = d
-					best_pt = ip
-			else:
-				pass
-	# Intersect with blocker ridges (prior levels)
-	for rec in blockers:
-		var ra: Vector2 = rec["a"]
-		var rb: Vector2 = rec["b"]
-		var ip2_any: Variant = Geometry2D.segment_intersects_segment(p_start, p_end, ra, rb)
-		var ip2: Vector2 = ip2_any if ip2_any is Vector2 else Vector2.ZERO
-		if ip2 != Vector2.ZERO:
-			var d2: float = p_start.distance_to(ip2)
-			if d2 > RIDGE_EPS:
-				if d2 < best_d:
-					best_d = d2
-					best_pt = ip2
-			else:
-				pass
-	return best_pt
 
 func _trace_noisy_path(
 		start_pt: Vector2,
@@ -1472,7 +1429,7 @@ func _trace_noisy_path(
 	noise.seed = int(floor(start_pt.x + start_pt.y))
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	noise.frequency = noise_freq
-	while steps < RIDGE_MAX_STEPS:
+	while steps < RIDGE_MAIN_MAX_STEPS:
 		steps += 1
 		# direction to goal
 		var to_goal: Vector2 = (end_pt - pos)
@@ -1498,12 +1455,13 @@ func _trace_noisy_path(
 		var next_pos: Vector2 = pos + dir * step_px
 		# keep inside polygon
 		if Geometry2D.is_point_in_polygon(next_pos, polygon) == false:
-			# project slightly towards inside by blending with centroid
-			var centroid: Vector2 = GeometryUtils.calculate_centroid(polygon)
-			var pull: Vector2 = (centroid - pos).normalized()
-			next_pos = pos + pull * step_px
-			if Geometry2D.is_point_in_polygon(next_pos, polygon) == false:
-				break
+			break
+			## project slightly towards inside by blending with centroid
+			#var centroid: Vector2 = GeometryUtils.calculate_centroid(polygon)
+			#var pull: Vector2 = (centroid - pos).normalized()
+			#next_pos = pos + pull * step_px
+			#if Geometry2D.is_point_in_polygon(next_pos, polygon) == false:
+				#break
 		# stop if we hit the stop polyline
 		if stop_on_polyline.size() >= 2:
 			for i: int in range(stop_on_polyline.size() - 1):
@@ -1534,210 +1492,67 @@ func _closest_point_on_polyline(p: Vector2, poly: PackedVector2Array) -> Vector2
 			best_d2 = best_d2
 	return best
 
-func _clip_to_polyline_intersection(path: PackedVector2Array, stop_poly: PackedVector2Array) -> PackedVector2Array:
-	var out: PackedVector2Array = PackedVector2Array()
-	if path.size() < 2:
-		return out
-	out.append(path[0])
-	for i: int in range(path.size() - 1):
-		var a: Vector2 = path[i]
-		var b: Vector2 = path[i + 1]
-		var hit: bool = false
-		for j: int in range(stop_poly.size() - 1):
-			var ip_any: Variant = Geometry2D.segment_intersects_segment(a, b, stop_poly[j], stop_poly[j + 1])
-			if ip_any is Vector2:
-				out.append(ip_any)
-				hit = true
-				break
-		if hit:
-			return out
-		out.append(b)
-	return out
 
-func _build_ridge_segment_cache(ridges: Array[Dictionary]) -> Array[Dictionary]:
-	var segs: Array[Dictionary] = []
-	for rec in ridges:
-		var a: Vector2 = rec["a"]
-		var b: Vector2 = rec["b"]
-		var lvl: int = int(rec.get("level", 0))
-		var seg: Dictionary = {}
-		seg["a"] = a
-		seg["b"] = b
-		seg["level"] = lvl
-		# precompute bbox
-		var min_x: float = min(a.x, b.x)
-		var max_x: float = max(a.x, b.x)
-		var min_y: float = min(a.y, b.y)
-		var max_y: float = max(a.y, b.y)
-		seg["aabb"] = Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
-		segs.append(seg)
-	return segs
-
-func _build_ridge_grid_index(segments: Array[Dictionary], cell: float) -> Dictionary:
-	var index: Dictionary = {}
-	index["cell"] = cell
-	index["map"] = {}
-	# bounds not needed for the maximally efficient capped ring search
-	for i: int in range(segments.size()):
-		var s: Dictionary = segments[i]
-		var r: Rect2 = s["aabb"]
-		var gx0: int = int(floor(r.position.x / cell))
-		var gy0: int = int(floor(r.position.y / cell))
-		var gx1: int = int(floor((r.position.x + r.size.x) / cell))
-		var gy1: int = int(floor((r.position.y + r.size.y) / cell))
-		for gx: int in range(gx0, gx1 + 1):
-			for gy: int in range(gy0, gy1 + 1):
-				var key: String = str(gx) + "," + str(gy)
-				var arr: Array = []
-				if index["map"].has(key):
-					arr = index["map"][key]
-				else:
-					arr = []
-				arr.append(i)
-				index["map"][key] = arr
-	return index
-
-func _build_edge_grid_index(poly: PackedVector2Array, cell: float) -> Dictionary:
-	var index: Dictionary = {}
-	index["cell"] = cell
-	index["map"] = {}
-	for i: int in range(poly.size()):
-		var a: Vector2 = poly[i]
-		var b: Vector2 = poly[(i + 1) % poly.size()]
-		var min_x: float = min(a.x, b.x)
-		var max_x: float = max(a.x, b.x)
-		var min_y: float = min(a.y, b.y)
-		var max_y: float = max(a.y, b.y)
-		var r: Rect2 = Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
-		var gx0: int = int(floor(r.position.x / cell))
-		var gy0: int = int(floor(r.position.y / cell))
-		var gx1: int = int(floor((r.position.x + r.size.x) / cell))
-		var gy1: int = int(floor((r.position.y + r.size.y) / cell))
-		for gx: int in range(gx0, gx1 + 1):
-			for gy: int in range(gy0, gy1 + 1):
-				var key: String = str(gx) + "," + str(gy)
-				var arr: Array = []
-				if index["map"].has(key):
-					arr = index["map"][key]
-				else:
-					arr = []
-				var rec: Dictionary = {}
-				rec["a"] = a
-				rec["b"] = b
-				arr.append(rec)
-				index["map"][key] = arr
-	return index
-
-func _nearest_edge_distance_fast(
-		p: Vector2,
-		poly: PackedVector2Array,
-		edge_index: Dictionary,
-		cell: float,
-		io_edge_tests: int
-	) -> float:
-	var gx: int = int(floor(p.x / cell))
-	var gy: int = int(floor(p.y / cell))
+func _nearest_edge_distance(p: Vector2, poly: PackedVector2Array) -> float:
 	var best: float = INF
-	for ox: int in range(-1, 2):
-		for oy: int in range(-1, 2):
-			var key: String = str(gx + ox) + "," + str(gy + oy)
-			if not edge_index["map"].has(key):
-				continue
-			var arr: Array = edge_index["map"][key]
-			for rec in arr:
-				var a: Vector2 = rec["a"]
-				var b: Vector2 = rec["b"]
-				var proj: Vector2 = Geometry2D.get_closest_point_to_segment(p, a, b)
-				var d: float = p.distance_to(proj)
-				if d < best:
-					best = d
-				else:
-					best = best
-				io_edge_tests += 1
-	# ensure correctness if empty cells (fallback scan)
-	if best == INF:
-		var e: int = 0
-		while e < poly.size():
-			var a2: Vector2 = poly[e]
-			var b2: Vector2 = poly[(e + 1) % poly.size()]
-			var proj2: Vector2 = Geometry2D.get_closest_point_to_segment(p, a2, b2)
-			var d2: float = p.distance_to(proj2)
-			if d2 < best:
-				best = d2
-			else:
-				best = best
-			e += 1
-		io_edge_tests += poly.size()
+	var e: int = 0
+	while e < poly.size():
+		var a: Vector2 = poly[e]
+		var b: Vector2 = poly[(e + 1) % poly.size()]
+		var proj: Vector2 = Geometry2D.get_closest_point_to_segment(p, a, b)
+		var d: float = p.distance_to(proj)
+		if d < best:
+			best = d
+		else:
+			best = best
+		e += 1
 	return best
 	
-func _ridge_multipliers_at_fast(p: Vector2, segments: Array[Dictionary], grid_index: Dictionary) -> Dictionary:
+func _ridge_multipliers_at(p: Vector2, segments: Array[Dictionary]) -> Dictionary:
 	var result: Dictionary = {}
 	result["distance"] = 1.0
 	result["normal"] = 1.0
 	result["level"] = 0
 	if segments.size() <= 0:
 		return result
-	var cell: float = float(grid_index.get("cell", 32.0))
-	var gx: int = int(floor(p.x / cell))
-	var gy: int = int(floor(p.y / cell))
 	var best_idx: int = -1
-	var best_d: float = INF
+	var best_d_eff: float = INF
 	var best_proj: Vector2 = Vector2.ZERO
-	# expanding ring search with AABB lower bound early-out
-	var candidates: int = 0
-	var ring: int = 0
-	var half_diag: float = sqrt(2.0) * (cell * 0.5)
-	while ring <= 4:
-		for ox: int in range(-ring, ring + 1):
-			for oy: int in range(-ring, ring + 1):
-				if ring > 0 and abs(ox) != ring and abs(oy) != ring:
-					continue
-				var key: String = str(gx + ox) + "," + str(gy + oy)
-				if not grid_index["map"].has(key):
-					continue
-				var arr: Array = grid_index["map"][key]
-				for idv in arr:
-					candidates += 1
-					var seg: Dictionary = segments[int(idv)]
-					var a: Vector2 = seg["a"]
-					var b: Vector2 = seg["b"]
-					var lvl: int = int(seg.get("level", 0))
-					# AABB lower bound check
-					var r: Rect2 = seg["aabb"]
-					var lb2: float = 0.0
-					if p.x < r.position.x:
-						lb2 += (r.position.x - p.x) * (r.position.x - p.x)
-					else:
-						if p.x > r.position.x + r.size.x:
-							lb2 += (p.x - (r.position.x + r.size.x)) * (p.x - (r.position.x + r.size.x))
-					if p.y < r.position.y:
-						lb2 += (r.position.y - p.y) * (r.position.y - p.y)
-					else:
-						if p.y > r.position.y + r.size.y:
-							lb2 += (p.y - (r.position.y + r.size.y)) * (p.y - (r.position.y + r.size.y))
-					var lb: float = sqrt(lb2)
-					var lb_eff: float = lb
-					if lvl > 1:
-						lb_eff = lb * RIDGE_MAIN_DISTANCE_BIAS
-					if lb_eff >= best_d:
-						continue
-					var proj: Vector2 = Geometry2D.get_closest_point_to_segment(p, a, b)
-					var d: float = p.distance_to(proj)
-					var d_eff: float = d
-					if lvl > 1:
-						d_eff = d * RIDGE_MAIN_DISTANCE_BIAS
-					if d_eff < best_d:
-						best_d = d_eff
-						best_idx = int(idv)
-						best_proj = proj
-		# stop if best is safely within current ring neighborhood
-		if best_idx >= 0 and best_d <= (float(ring) + 0.5) * cell + half_diag:
-			break
-		ring += 1
-	if PROFILE_MTN:
-		_prof_fast_candidates += candidates
-	if best_idx < 0:
-		return result
+	var main_best: float = INF
+	var main_proj: Vector2 = Vector2.ZERO
+	var main_a: Vector2 = Vector2.ZERO
+	var main_b: Vector2 = Vector2.ZERO
+	var i: int = 0
+	while i < segments.size():
+		var seg: Dictionary = segments[i]
+		var a: Vector2 = seg["a"]
+		var b: Vector2 = seg["b"]
+		var lvl: int = seg["level"]
+		var proj: Vector2 = Geometry2D.get_closest_point_to_segment(p, a, b)
+		var d: float = p.distance_to(proj)
+		var d_eff: float = d
+		if lvl > 1:
+			d_eff = d * RIDGE_MAIN_DISTANCE_BIAS
+		else:
+			d_eff = d_eff
+		if d_eff < best_d_eff:
+			best_d_eff = d_eff
+			best_idx = i
+			best_proj = proj
+		else:
+			best_d_eff = best_d_eff
+		if lvl == 1:
+			var q: Vector2 = proj
+			var dmain: float = p.distance_to(q)
+			if dmain < main_best:
+				main_best = dmain
+				main_proj = q
+				main_a = a
+				main_b = b
+		else:
+			main_best = main_best
+		i += 1
+	assert(best_idx >= 0)
 	var chosen: Dictionary = segments[best_idx]
 	var a2: Vector2 = chosen["a"]
 	var b2: Vector2 = chosen["b"]
@@ -1765,55 +1580,37 @@ func _ridge_multipliers_at_fast(p: Vector2, segments: Array[Dictionary], grid_in
 	else:
 		if light > 1.0:
 			light = 1.0
-	# distance
-	result["distance"] = _ridge_factor_distance_from(best_d, level)
-	# chosen normal
+	result["distance"] = _ridge_factor_distance_from(best_d_eff, level)
 	var normal_chosen: float = _ridge_factor_normal_from(light, side)
-	# main dominance: search all main segments to find the closest one
-	var main_best: float = INF
-	var main_proj: Vector2 = Vector2.ZERO
-	var main_a: Vector2 = Vector2.ZERO
-	var main_b: Vector2 = Vector2.ZERO
-	for i: int in range(segments.size()):
-		var seg2: Dictionary = segments[i]
-		if int(seg2.get("level", 0)) != 1:
-			continue
-		var aa: Vector2 = seg2["a"]
-		var bb: Vector2 = seg2["b"]
-		var q: Vector2 = Geometry2D.get_closest_point_to_segment(p, aa, bb)
-		var dmain: float = p.distance_to(q)
-		if dmain < main_best:
-			main_best = dmain
-			main_proj = q
-			main_a = aa
-			main_b = bb
-	# blend
 	var normal_main: float = normal_chosen
-	assert(main_best<INF)
-	assert(main_a != main_b)
-	var m_vec: Vector2 = (main_b - main_a)
-	if m_vec.length() > 0.0:
-		var m_n: Vector2 = m_vec.normalized()
-		var m_perp: Vector2 = Vector2(-m_n.y, m_n.x)
-		var yaw2: float = deg_to_rad(_rng.randf_range(-MTN_JITTER_DEG, MTN_JITTER_DEG))
-		var m_light_n: Vector2 = Vector2(
-			m_perp.x * cos(yaw2) - m_perp.y * sin(yaw2),
-			m_perp.x * sin(yaw2) + m_perp.y * cos(yaw2)
-		)
-		var rel2: Vector2 = p - main_proj
-		var side2: float = 1.0 if rel2.dot(m_perp) >= 0.0 else -1.0
-		var light2: float = m_light_n.dot(-Global.LIGHT_DIR)
-		if light2 < -1.0:
-			light2 = -1.0
-		else:
-			if light2 > 1.0:
-				light2 = 1.0
-		normal_main = _ridge_factor_normal_from(light2, side2)
+	if main_a != main_b:
+		var m_vec: Vector2 = (main_b - main_a)
+		if m_vec.length() > 0.0:
+			var m_n: Vector2 = m_vec.normalized()
+			var m_perp: Vector2 = Vector2(-m_n.y, m_n.x)
+			var yaw2: float = deg_to_rad(_rng.randf_range(-MTN_JITTER_DEG, MTN_JITTER_DEG))
+			var m_light_n: Vector2 = Vector2(
+				m_perp.x * cos(yaw2) - m_perp.y * sin(yaw2),
+				m_perp.x * sin(yaw2) + m_perp.y * cos(yaw2)
+			)
+			var rel2: Vector2 = p - main_proj
+			var side2: float
+			if rel2.dot(m_perp) >= 0.0:
+				side2 = 1.0
+			else:
+				side2 = -1.0
+			var light2: float = m_light_n.dot(-Global.LIGHT_DIR)
+			if light2 < -1.0:
+				light2 = -1.0
+			else:
+				if light2 > 1.0:
+					light2 = 1.0
+			normal_main = _ridge_factor_normal_from(light2, side2)
 	var dom_w: float = 0.0
 	if level > 1:
 		dom_w = RIDGE_MAIN_NORMAL_DOMINANCE
-		if main_best < INF and best_d > 0.0:
-			var ratio: float = clamp(main_best / pow(best_d, 2.0), 0.0, 1.0)
+		if main_best < INF and best_d_eff > 0.0:
+			var ratio: float = clamp(main_best / pow(best_d_eff, 2.0), 0.0, 1.0)
 			dom_w = clamp(dom_w * (1.0 - ratio), 0.0, 1.0)
 	var normal_blend: float = normal_chosen * (1.0 - dom_w) + normal_main * dom_w
 	result["normal"] = normal_blend
@@ -1866,7 +1663,7 @@ func _trace_random_walk_until_hit(
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	noise.frequency = noise_freq
 	var steps: int = 0
-	while steps < RIDGE_MAX_STEPS:
+	while steps < RIDGE_SECOND_MAX_STEPS:
 		steps += 1
 		# bias toward centroid a bit to reduce escape to corners
 		var n: float = noise.get_noise_2d(pos.x, pos.y)
