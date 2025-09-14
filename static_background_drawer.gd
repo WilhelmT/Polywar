@@ -826,8 +826,8 @@ func _prepare_mountains() -> void:
 		if map.terrain_map[poly_id] != "mountains":
 			continue
 		
-		#if collected:
-			#continue
+		if collected:
+			continue
 		var mountain_polygon: PackedVector2Array = original_area.polygon
 		mountain_polygon = _clip_river_polygons(mountain_polygon, original_area)
 		_collect_mountain_triangles(mountain_polygon)
