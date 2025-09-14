@@ -12,7 +12,7 @@ const TREE_MIN_SIDES: int						= 6		# Reduced for performance
 const TREE_MAX_SIDES: int						= 8		# Reduced for performance
 const TREE_CANOPY_BASE: Color					= Color(0.13, 0.32, 0.13, 1.0)  # will vary a bit
 const TREE_SHADOW_DARKEN: float					= 0.125
-const TREE_DENSITY: float						= 0.1	# ↑ denser
+const TREE_DENSITY: float						= 0.075	# ↑ denser
 const MAX_TREES_PER_AREA: int = 10000					# Prevent excessive trees
 const MAX_TREE_ATTEMPTS: int = 10000					# Limit total attempts per area
 const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
@@ -29,7 +29,7 @@ const MTN_BRIGHT_MIN: float			= 0.0		# brightest
 const MTN_BRIGHT_MAX: float			= 1.0		# darkest
 const MTN_JITTER_DEG: float			= 25.0		# ± random yaw on the fake normal
 const MTN_SHADOW_OFFSET: Vector2	= Vector2(24, 24)	# tweak to taste
-const MTN_SHADOW_DARKEN: float		= 0.325				# 0 = black, 1 = no darken
+const MTN_SHADOW_DARKEN: float		= 0.375				# 0 = black, 1 = no darken
 const PROFILE_MTN: bool				= true
 
 # Mountain ridges configuration
