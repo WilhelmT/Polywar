@@ -19,14 +19,14 @@ const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
 const TREE_TRUNK_OFFSET: Vector2					= Vector2(0, TREE_MIN_RADIUS)
 const TREE_TRUNK_FRAC: float					= 0.2		# trunk size = frac · TREE_MIN_RADIUS
 const TREE_TRUNK_COLOR: Color					= Color(0.29, 0.17, 0.09, 1.0)
-const LIGHT_DARK: float				= 0.5	# darkest a facet may get (× base colour)
+const LIGHT_DARK: float				= 0.25	# darkest a facet may get (× base colour)
 const LIGHT_BRIGHT: float			= 1.00	# brightest (× base colour)
 const FACET_JITTER_DEG: float			= 12.0	# ± rotation for the “normal”
 
 # Mountains
 const MTN_BRIGHT_MIN: float			= 0.0		# brightest
 const MTN_BRIGHT_MAX: float			= 1.0		# darkest
-const MTN_JITTER_DEG: float			= 25.0		# ± random yaw on the fake normal
+const MTN_JITTER_DEG: float			= 48.0		# ± random yaw on the fake normal
 const MTN_SHADOW_OFFSET: Vector2	= Vector2(24, 24)	# tweak to taste
 const MTN_SHADOW_DARKEN: float		= 0.325				# 0 = black, 1 = no darken
 const PROFILE_MTN: bool				= true
@@ -37,7 +37,7 @@ const MTN_TEX_SUBPIXEL_OFFSET: float = 0.5
 # Mountain ridges configuration
 const RIDGE_LEVELS: int = 2
 const RIDGE_LEVEL_WIDTH_FACTOR: float = 2.0
-const RIDGE_NORMAL_STRENGTH: float = 1.0
+const RIDGE_NORMAL_STRENGTH: float = 0.5
 const RIDGE_DISTANCE_STRENGTH: float = 0.05
 const RIDGE_EPS: float = 0.0001
 const RIDGE_TRACE_STEP_PX: float = 16.0
@@ -64,7 +64,7 @@ const ROCK_MIN_SIDES: int					= 5
 const ROCK_MAX_SIDES: int					= 7
 const ROCK_BASE_COLOR: Color				= Color(0.21, 0.19, 0.17, 1.0)
 const ROCK_SHADOW_DARKEN: float				= 0.5
-const ROCK_SHADOW_OFFSET: Vector2			= Vector2(3, 3)	# much smaller than trees
+const ROCK_SHADOW_OFFSET: Vector2			= Vector2(2.0, 2.0)	# much smaller than trees
 # ─── Rock band look ────────────────────────────────────────────────────────────
 const ROCK_ELONG_SCALE: float			= 1.75	# stretch along river tangent
 const ROCK_SPACING: float				= ROCK_MAX_RADIUS * 1.1	# centre-to-centre

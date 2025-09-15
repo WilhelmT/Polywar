@@ -304,7 +304,7 @@ func _make_outline_node(area: Area, areas: Array[Area]) -> Array[Line2D]:
 				outline_color = Color.BLACK
 			else:
 				line.width = effective_width
-				outline_color = area.color
+				outline_color = area.color#.lightened(0.5)
 			
 			outline_color.a = 1.0
 		

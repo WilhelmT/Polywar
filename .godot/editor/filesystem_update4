@@ -1,5 +1,9 @@
-res://static_background_drawer.gd
 res://main.tscn
 res://draw_component.tscn
+res://static_background_drawer.gd
+res://game_simulation_component.gd
+res://air_layer.gd
+res://draw_component.gd
+res://polygon_layer1.gd
 res://water_fill_drawer.gd
 res://river_fill_drawer.gd

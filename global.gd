@@ -279,10 +279,10 @@ func get_vehicle_color(player_id: int) -> Color:
 	tint.a = 1.0
 	if tint.h > 0.5:
 		tint.h -= 0.075
-		#tint.v *= 1.125
+		tint.v *= 1.25
 	else:
 		tint.h += 0.025
-		#tint.v *= 1.125
+		tint.v *= 1.25
 	if tint.h < 0:
 		tint.h = 1-tint.h
 	tint.s *= 0.9

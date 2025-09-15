@@ -7,7 +7,7 @@ const USE_UNION: bool = false
 const PLAYER_ID: int = 0
 
 # Static Simulation Variables
-const EXPANSION_SPEED: float = 8.0*Global.GLOBAL_SPEED
+const EXPANSION_SPEED: float = 12.0*Global.GLOBAL_SPEED
 const MIN_EXPANSION_SPEED: float = 1
 const MAX_EXPANSION_SPEED: float = 500
 
@@ -76,6 +76,7 @@ var current_hover_original_area: Area
 var print_time: float = 0.5
 var print_iter: float = 0.0
 var debug_poly: PackedVector2Array
+var debug_points: PackedVector2Array
 
 var areas: Array[Area]
 var map: Global.Map
@@ -1135,6 +1136,8 @@ func _precalculate_point_strength_multipliers(
 	for point: Vector2 in polygon:
 		var highest_multiplier: float = -INF  # Default when not in enemy territory
 		
+		var walkable_area: Area = point_to_walkable_areas_map[point]
+
 		# 1. Multiplier from strength diff
 		for enemy_area: Area in areas:
 			if enemy_area.owner_id < 0 or enemy_area.owner_id == area.owner_id:
@@ -1142,7 +1145,10 @@ func _precalculate_point_strength_multipliers(
 			if not slightly_offset_area_polygons.has(enemy_area):
 				continue
 			
-			for slightly_offset_area_polygon: PackedVector2Array in slightly_offset_area_polygons[enemy_area]:
+			if not intersecting_original_walkable_area_start_of_tick[walkable_area].has(enemy_area):
+				continue
+			for slightly_offset_area_polygon: PackedVector2Array in intersecting_original_walkable_area_start_of_tick[walkable_area][enemy_area]:
+			#for slightly_offset_area_polygon: PackedVector2Array in slightly_offset_area_polygons[enemy_area]:
 				if Geometry2D.is_point_in_polygon(point, slightly_offset_area_polygon):
 					var enemy_strength: float = all_area_strengths_raw[enemy_area]
 					var multiplier: float = _get_mul_from_strength_diff(
@@ -1153,12 +1159,13 @@ func _precalculate_point_strength_multipliers(
 					if multiplier > highest_multiplier:
 						highest_multiplier = multiplier
 		if highest_multiplier == -INF:
+			#if area.owner_id == PLAYER_ID:
+				#debug_points.append(point)
 			highest_multiplier = 1.0
 
 		# 2. Multiplier from air denial
 		if area.owner_id != PLAYER_ID:
 			var air_layer: AirLayer = get_parent().draw_component.air_layer
-			var walkable_area: Area = point_to_walkable_areas_map[point]
 			var air_slowdown: float = air_layer.get_air_slowdown_multiplier(walkable_area)
 			highest_multiplier *= air_slowdown		
 		point_multipliers[point] = highest_multiplier
@@ -1368,7 +1375,6 @@ func _process_expansion_for_new_walkable_area(
 				expansions_and_holes.append([combined_expansion, offset_polygons_clipped_holes])
 			
 			if expansions_and_holes.size() > 0:
-				#debug_poly = original_area.polygon.duplicate()
 				extra_enemy_areas_created.append_array(
 					 _process_expansions_and_holes(
 						expansions_and_holes,
@@ -2821,6 +2827,7 @@ func _clear_start_of_tick(delta: float) -> void:
 	total_casualties_start_of_tick.clear()
 
 	debug_poly.clear()
+	debug_points.clear()
 
 func _clear_end_of_tick(delta: float) -> void:
 	area_source_polygons.clear()
@@ -3550,6 +3557,11 @@ func _draw() -> void:
 		polyline.append(polyline[0])
 		draw_polyline(polyline, Color.MAGENTA, 2.0)
 
+	if debug_poly != null and debug_points.size() > 0:
+		for point: Vector2 in debug_points:
+			draw_circle(point, 3.0, Color.MAGENTA)
+		
+		
 	# Draw artillery piece positions (radius = strike_radius/5)
 	if ARTILLERY:
 		for original_area: Area in map.original_walkable_areas:

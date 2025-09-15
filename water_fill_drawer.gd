@@ -63,7 +63,7 @@ func _draw_lake_fill(polygon: PackedVector2Array) -> void:
 	for layer: int in range(LAKE_LAYER_COUNT):
 		var found_valid_inset: bool = false
 		var offset: float = -(float(layer + 1) * LAYER_OFFSET_STEP)
-		var darken_amount: float = 0.0 + (float(layer) * 0.0035)
+		var darken_amount: float = 0.0 + (float(layer) * 0.0025)
 		darken_amount = sqrt(darken_amount)
 		darken_amount = min(darken_amount, DARKEN_MIN)
 		var layer_color: Color = water_base.darkened(darken_amount)

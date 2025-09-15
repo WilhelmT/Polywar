@@ -9,7 +9,7 @@ const spawn_fade_time: float = 0.25
 const die_fade_time: float = 0.25
 const max_speed: float = 2000.0
 const min_speed: float = 100.0
-const unit_size: int = 24
+const unit_size: int = 16
 const unit_alpha: float = 1.0
 
 const TOTAL_AIR_UNITS: int = 25  # Constant pool of air units
@@ -22,7 +22,7 @@ var _air_multimesh: MultiMesh
 var _shadow_multimesh: MultiMesh
 var _air_texture: Texture2D
 var _shadow_texture: Texture2D
-var texture_size: int = 64
+var texture_size: int = unit_size
 
 # ─────────────── Air Agent ───────────────
 class AirAgent:
@@ -145,18 +145,18 @@ func _draw_airplane_symbol(control: Control, size: int) -> void:
 	# Airplane body (vertical line)
 	var body_start: Vector2 = center + Vector2(0, -length * 0.5)
 	var body_end: Vector2 = center + Vector2(0, length * 0.3)
-	control.draw_line(body_start, body_end, col, 8.0, true)
+	control.draw_line(body_start, body_end, col, size*0.125, true)
 	
 	# Wings (horizontal line)
 	var wing_start: Vector2 = center + Vector2(-wing_span * 0.5, -length * 0.1)
 	var wing_end: Vector2 = center + Vector2(wing_span * 0.5, -length * 0.1)
-	control.draw_line(wing_start, wing_end, col, 6.0, true)
+	control.draw_line(wing_start, wing_end, col, size*0.09375, true)
 	
 	# Tail wings (smaller horizontal line)
 	var tail_span: float = wing_span * 0.4
 	var tail_start: Vector2 = center + Vector2(-tail_span * 0.5, length * 0.2)
 	var tail_end: Vector2 = center + Vector2(tail_span * 0.5, length * 0.2)
-	control.draw_line(tail_start, tail_end, col, 5.0, true)
+	control.draw_line(tail_start, tail_end, col, size*0.078125, true)
 
 func _draw_shadow_symbol(control: Control, size: int) -> void:
 	# Draw shadow - same shape as airplane, centered (offset handled in transform)
@@ -171,18 +171,18 @@ func _draw_shadow_symbol(control: Control, size: int) -> void:
 	# Shadow airplane body (vertical line) - centered like the main airplane
 	var shadow_body_start: Vector2 = center + Vector2(0, -length * 0.5)
 	var shadow_body_end: Vector2 = center + Vector2(0, length * 0.3)
-	control.draw_line(shadow_body_start, shadow_body_end, shadow_col, 8.0, true)
+	control.draw_line(shadow_body_start, shadow_body_end, shadow_col, size*0.125, true)
 	
 	# Shadow wings (horizontal line)
 	var shadow_wing_start: Vector2 = center + Vector2(-wing_span * 0.5, -length * 0.1)
 	var shadow_wing_end: Vector2 = center + Vector2(wing_span * 0.5, -length * 0.1)
-	control.draw_line(shadow_wing_start, shadow_wing_end, shadow_col, 6.0, true)
+	control.draw_line(shadow_wing_start, shadow_wing_end, shadow_col, size*0.09375, true)
 	
 	# Shadow tail wings (smaller horizontal line)
 	var tail_span: float = wing_span * 0.4
 	var shadow_tail_start: Vector2 = center + Vector2(-tail_span * 0.5, length * 0.2)
 	var shadow_tail_end: Vector2 = center + Vector2(tail_span * 0.5, length * 0.2)
-	control.draw_line(shadow_tail_start, shadow_tail_end, shadow_col, 5.0, true)
+	control.draw_line(shadow_tail_start, shadow_tail_end, shadow_col, size*0.078125, true)
 
 # ─────────────── Physics tick ───────────────
 func _physics_process(delta: float) -> void:

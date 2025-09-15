@@ -34,7 +34,7 @@ func _draw() -> void:
 		while l < layer_count:
 			var found_valid_inset: bool = false
 			var inset: float = -float(l + 1) * layer_step
-			var darken_amount: float = 0.0 + (float(l) * 0.0035)
+			var darken_amount: float = 0.0 + (float(l) * 0.0025)
 			darken_amount = sqrt(darken_amount)
 			darken_amount = min(darken_amount, DARKEN_MIN)
 			var layer_color: Color = water_base.darkened(darken_amount)
