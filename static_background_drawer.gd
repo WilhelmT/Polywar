@@ -6,20 +6,20 @@ var map_generator: MapGenerator = null
 var map: Global.Map = null
 var simple_mode: bool = false
 
-const TREE_MIN_RADIUS: float					= 2.0
-const TREE_MAX_RADIUS: float					= 3.0
+const TREE_MIN_RADIUS: float					= 1.5
+const TREE_MAX_RADIUS: float					= 2.0
 const TREE_MIN_SIDES: int						= 6		# Reduced for performance
 const TREE_MAX_SIDES: int						= 8		# Reduced for performance
 const TREE_CANOPY_BASE: Color					= Color(0.13, 0.32, 0.13, 1.0)  # will vary a bit
 const TREE_SHADOW_DARKEN: float					= 0.125
-const TREE_DENSITY: float						= 0.075	# ↑ denser
+const TREE_DENSITY: float						= 0.1	# ↑ denser
 const MAX_TREES_PER_AREA: int = 10000					# Prevent excessive trees
 const MAX_TREE_ATTEMPTS: int = 10000					# Limit total attempts per area
 const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
 const TREE_TRUNK_OFFSET: Vector2					= Vector2(0, TREE_MIN_RADIUS)
 const TREE_TRUNK_FRAC: float					= 0.2		# trunk size = frac · TREE_MIN_RADIUS
 const TREE_TRUNK_COLOR: Color					= Color(0.29, 0.17, 0.09, 1.0)
-const LIGHT_DARK: float				= 0.0	# darkest a facet may get (× base colour)
+const LIGHT_DARK: float				= 0.5	# darkest a facet may get (× base colour)
 const LIGHT_BRIGHT: float			= 1.00	# brightest (× base colour)
 const FACET_JITTER_DEG: float			= 12.0	# ± rotation for the “normal”
 
@@ -28,7 +28,7 @@ const MTN_BRIGHT_MIN: float			= 0.0		# brightest
 const MTN_BRIGHT_MAX: float			= 1.0		# darkest
 const MTN_JITTER_DEG: float			= 25.0		# ± random yaw on the fake normal
 const MTN_SHADOW_OFFSET: Vector2	= Vector2(24, 24)	# tweak to taste
-const MTN_SHADOW_DARKEN: float		= 0.375				# 0 = black, 1 = no darken
+const MTN_SHADOW_DARKEN: float		= 0.325				# 0 = black, 1 = no darken
 const PROFILE_MTN: bool				= true
 
 const MTN_TEX_PADDING_PX: int = 0
@@ -37,7 +37,7 @@ const MTN_TEX_SUBPIXEL_OFFSET: float = 0.5
 # Mountain ridges configuration
 const RIDGE_LEVELS: int = 2
 const RIDGE_LEVEL_WIDTH_FACTOR: float = 2.0
-const RIDGE_NORMAL_STRENGTH: float = 0.5
+const RIDGE_NORMAL_STRENGTH: float = 1.0
 const RIDGE_DISTANCE_STRENGTH: float = 0.05
 const RIDGE_EPS: float = 0.0001
 const RIDGE_TRACE_STEP_PX: float = 16.0
@@ -523,7 +523,7 @@ func _prepare_trees() -> void:
 
 		var tree_canopy_base: Color = TREE_CANOPY_BASE
 		tree_canopy_base.s *= 0.55
-		#tree_canopy_base.v *= 1.0
+		tree_canopy_base.v *= 1.0
 		var base_hsv: Vector3 = Vector3(tree_canopy_base.h, tree_canopy_base.s, tree_canopy_base.v)
 		var base_hue: float = clamp(base_hsv.x + _rng.randf_range(-0.04, 0.04), 0.0, 1.0)
 		var base_val: float = base_hsv.z#clamp(base_hsv.z + _rng.randf_range(-0.07, 0.07), 0.0, 1.0)
@@ -914,7 +914,7 @@ func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Colo
 	eased = min(eased, 0.75)
 	var col: Color = base_col * (0.75 * ridge_norm_mul + 0.75 * f_light)
 	col = _composite_over_color(col, Global.background_color)
-	var prox_mul: float = 0.5 + eased * 0.5 + min(0.75, 3.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 2.0))
+	var prox_mul: float = 0.5 + eased * 0.5# + min(0.75, 3.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 2.0))
 	if prox_mul > 1.0:
 		prox_mul = 1.0
 	else:

@@ -1,3 +1,5 @@
 res://static_background_drawer.gd
 res://main.tscn
 res://draw_component.tscn
+res://water_fill_drawer.gd
+res://river_fill_drawer.gd
