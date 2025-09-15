@@ -19,7 +19,7 @@ const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
 const TREE_TRUNK_OFFSET: Vector2					= Vector2(0, TREE_MIN_RADIUS)
 const TREE_TRUNK_FRAC: float					= 0.2		# trunk size = frac · TREE_MIN_RADIUS
 const TREE_TRUNK_COLOR: Color					= Color(0.29, 0.17, 0.09, 1.0)
-const LIGHT_DARK: float				= 0.5	# darkest a facet may get (× base colour)
+const LIGHT_DARK: float				= 0.25	# darkest a facet may get (× base colour)
 const LIGHT_BRIGHT: float			= 1.00	# brightest (× base colour)
 const FACET_JITTER_DEG: float			= 12.0	# ± rotation for the “normal”
 
@@ -37,7 +37,7 @@ const MTN_TEX_SUBPIXEL_OFFSET: float = 0.5
 # Mountain ridges configuration
 const RIDGE_LEVELS: int = 2
 const RIDGE_LEVEL_WIDTH_FACTOR: float = 2.0
-const RIDGE_NORMAL_STRENGTH: float = 0.5
+const RIDGE_NORMAL_STRENGTH: float = 1.0
 const RIDGE_DISTANCE_STRENGTH: float = 0.05
 const RIDGE_EPS: float = 0.0001
 const RIDGE_TRACE_STEP_PX: float = 16.0
@@ -51,6 +51,15 @@ const RIDGE_SECOND_MAX_STEPS: int = 16
 const RIDGE_SECOND_BIAS: float = 0.35
 const RIDGE_MAIN_DISTANCE_BIAS: float = 2.0
 const RIDGE_MAIN_NORMAL_DOMINANCE: float = 0.5
+
+const LIGHT_Z: float = 0.90					# z component of the light dir (0..1)
+const BASE_SLOPE_DEG: float = 18.0			# outward tilt near polygon edge
+const BASE_EDGE_EXP: float = 0.90			# curve of the edge-tilt falloff
+const RIDGE_SLOPE_DEG: float = 38.0			# max steepness exactly on the crest
+const RIDGE_WIDTH_L1: float = 4*28.0			# half-width (px) where level-1 ridge affects normals
+const RIDGE_WIDTH_L2: float = 4*18.0			# same for level-2
+const RIDGE_SHARPNESS_POW: float = 4.0		# ↑ sharper near crest, flatter away
+const MIN_WIDTH_PX: float = 1.0				# avoids division by zero
 
 
 # ─── River-bed rocks ───────────────────────────────────────────────
@@ -341,7 +350,7 @@ func _generate_noise_image(seed1: int, seed2: int, seed3: int) -> Image:
 			var n1: float = noise1.get_noise_2d(wx, wy)
 			var n2: float = noise2.get_noise_2d(wx * 1.87, wy * 1.63)
 			var n3: float = noise3.get_noise_2d(wx * 2.11, wy * 2.39)
-			var v: float = 0.5 + 0.5 * n1 + 0.45 * n2 + 0.3 * n3
+			var v: float = 0.25 + 0.5 * n1 + 0.45 * n2 + 0.3 * n3
 			if v < 0.0:
 				v = 0.0
 			else:
@@ -755,8 +764,7 @@ func _prepare_trees() -> void:
 
 
 func _prepare_mountains() -> void:
-	_mountain_textures.clear()
-	
+	_mountain_textures.clear()	
 	# Deterministic seed per run not required for textures; avoid randomize here
 	
 	for original_area: Area in map.original_walkable_areas:
@@ -768,7 +776,8 @@ func _prepare_mountains() -> void:
 		var tex_entry: Dictionary = _build_mountain_texture_entry(poly_id, mountain_polygon)
 		if tex_entry.is_empty() == false:
 			_mountain_textures[poly_id] = tex_entry
-
+		#break
+	
 # ─────────────────────────── Mountain texture helpers ───────────────────────────
 func _build_mountain_texture_entry(poly_id: int, polygon: PackedVector2Array) -> Dictionary:
 	var result: Dictionary = {}
@@ -883,6 +892,7 @@ func _build_mountain_texture_entry(poly_id: int, polygon: PackedVector2Array) ->
 			" total_ms=", t_total_ms)
 	return result
 
+
 func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Color, ridges: Array[Dictionary], edge_dist: float, max_edge_dist: float) -> Color:
 	var dir_vec: Vector2 = (p - centroid)
 	var n: Vector2
@@ -904,7 +914,20 @@ func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Colo
 	var f_light: float = MTN_BRIGHT_MIN + (MTN_BRIGHT_MAX - MTN_BRIGHT_MIN) * (d_l + 1.0) * 0.5
 	var ridge_pair: Dictionary = _ridge_multipliers_at(p, ridges)
 	var ridge_dist_mul: float = float(ridge_pair["distance"])
-	var ridge_norm_mul: float = float(ridge_pair["normal"])
+	#var ridge_norm_mul: float = float(ridge_pair["normal"])
+	
+	var N: Vector3 = _compute_normal3d_for_pixel(p, centroid, ridges, edge_dist, max_edge_dist)
+
+	var L: Vector3 = Vector3(-Global.LIGHT_DIR.x, -Global.LIGHT_DIR.y, LIGHT_Z)
+	L = L.normalized()
+
+	var lambert: float = N.dot(L)
+	if lambert < 0.0:
+		lambert = 0.0
+	else:
+		lambert = lambert
+	var ridge_norm_mul: float = lambert
+	
 	var t_norm: float = 0.0
 	if max_edge_dist > 0.0:
 		t_norm = edge_dist / max_edge_dist
@@ -912,9 +935,9 @@ func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Colo
 		t_norm = 0.0
 	var eased: float = pow(t_norm, 1.0 / 2.0)
 	eased = min(eased, 0.75)
-	var col: Color = base_col * (0.75 * ridge_norm_mul + 0.75 * f_light)
+	var col: Color = base_col * (0.75 * ridge_norm_mul + 0.5 * f_light)
 	col = _composite_over_color(col, Global.background_color)
-	var prox_mul: float = 0.5 + eased * 0.5# + min(0.75, 3.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 2.0))
+	var prox_mul: float = 0.5 + eased * 0.5 + min(0.75, 2.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 3.0))
 	if prox_mul > 1.0:
 		prox_mul = 1.0
 	else:
@@ -1485,7 +1508,22 @@ func _nearest_edge_distance(p: Vector2, poly: PackedVector2Array) -> float:
 			best = best
 		e += 1
 	return best
-	
+
+func _smooth01(x: float) -> float:
+	var v: float = x
+	if v < 0.0:
+		v = 0.0
+	else:
+		if v > 1.0:
+			v = 1.0
+	return v
+
+func _ridge_influence_width_for_level(level: int) -> float:
+	if level <= 1:
+		return RIDGE_WIDTH_L1
+	else:
+		return RIDGE_WIDTH_L2
+
 func _ridge_multipliers_at(p: Vector2, segments: Array[Dictionary]) -> Dictionary:
 	var result: Dictionary = {}
 	result["distance"] = 1.0
@@ -1593,7 +1631,65 @@ func _ridge_multipliers_at(p: Vector2, segments: Array[Dictionary]) -> Dictionar
 	var normal_blend: float = normal_chosen * (1.0 - dom_w) + normal_main * dom_w
 	result["normal"] = normal_blend
 	result["level"] = level
+	
+	# Extra outputs used for distance-driven normals
+	var n2: Vector2 = n_vec.normalized()
+	result["n2"] = n2
+	result["proj"] = best_proj
+
+	var signed_d: float = p.distance_to(best_proj)
+	if side < 0.0:
+		signed_d = -signed_d
+	else:
+		signed_d = signed_d
+	result["signed_d"] = signed_d
 	return result
+
+func _compute_normal3d_for_pixel(
+		p: Vector2,
+		centroid: Vector2,
+		ridges: Array[Dictionary],
+		edge_dist: float,
+		max_edge_dist: float
+	) -> Vector3:
+	var nx: float = 0.0
+	var ny: float = 0.0
+
+	# --- Base mound: outward tilt grows toward the border; keeps far field flat-ish ---
+	if max_edge_dist > 0.0:
+		var t_edge: float = 1.0 - _smooth01(edge_dist / max_edge_dist)	# 0 center → 1 edge
+		var m_base: float = tan(deg_to_rad(BASE_SLOPE_DEG)) * pow(t_edge, BASE_EDGE_EXP)
+		var out_dir: Vector2 = (p - centroid)
+		if out_dir.length() > 0.0:
+			out_dir = out_dir.normalized()
+			nx += m_base * out_dir.x
+			ny += m_base * out_dir.y
+
+	# --- Ridge crest: strongest tilt on the crest, decays with |distance to crest| ---
+	var info: Dictionary = _ridge_multipliers_at(p, ridges)
+	var n2: Vector2 = info["n2"]						# 2D perp to the chosen ridge
+	var s: float = info["signed_d"]						# signed cross-ridge distance (px)
+	var lvl: int = int(info["level"])
+	var width_px: float = _ridge_influence_width_for_level(lvl)
+
+	if width_px < MIN_WIDTH_PX:
+		width_px = MIN_WIDTH_PX
+
+	var u: float = _smooth01(abs(s) / width_px)			# 0 at crest → 1 at influence edge
+	var m_ridge: float = tan(deg_to_rad(RIDGE_SLOPE_DEG)) * pow(1.0 - u, RIDGE_SHARPNESS_POW)
+
+	var sign_s: float = 1.0
+	if s < 0.0:
+		sign_s = -1.0
+	else:
+		sign_s = 1.0
+
+	nx += m_ridge * sign_s * n2.x
+	ny += m_ridge * sign_s * n2.y
+
+	var N: Vector3 = Vector3(nx, ny, 1.0)
+	N = N.normalized()
+	return N
 
 func _reconstruct_secondary_polylines(ridges: Array[Dictionary]) -> Array[PackedVector2Array]:
 	var out: Array[PackedVector2Array] = []
@@ -2166,7 +2262,7 @@ func _draw() -> void:
 				var entry: Dictionary = _mountain_textures[poly_id_draw]
 				var mountain_polygon_draw: PackedVector2Array = _clip_river_polygons(original_area.polygon, original_area)
 				_draw_textured_polygon_with_aabb(mountain_polygon_draw, entry["texture"], entry["aabb"])
-		
+
 		_draw_rivers()
 		
 		# Draw self-shadows directly on mountains so rivers overlapping mountains also receive shadow there
@@ -2209,7 +2305,7 @@ func _draw_terrain_pattern(
 		_draw_textured_area(polygon, _plains_texture, base_color, edge_color)
 		return
 	elif terrain_type == "forest":
-		_draw_textured_area(polygon, _plains_texture, base_color, edge_color)
+		_draw_textured_area(polygon, _forest_texture, base_color, edge_color)
 		return
 		
 	var centroid: Vector2 = Vector2.ZERO
