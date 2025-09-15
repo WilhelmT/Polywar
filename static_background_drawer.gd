@@ -69,8 +69,8 @@ const ROCK_SHADOW_OFFSET: Vector2			= Vector2(2.0, 2.0)	# much smaller than tree
 const ROCK_ELONG_SCALE: float			= 1.75	# stretch along river tangent
 const ROCK_SPACING: float				= ROCK_MAX_RADIUS * 1.1	# centre-to-centre
 # ─── Rock shading ─────────────────────────────────────────────────────────
-const ROCK_LIGHT_DARK: float			= 0.25	# darkest a facet may get (× base)
-const ROCK_LIGHT_BRIGHT: float			= 0.875	# brightest
+const ROCK_LIGHT_DARK: float			= 0.0	# darkest a facet may get (× base)
+const ROCK_LIGHT_BRIGHT: float			= 0.75	# brightest
 const ROCK_FACET_JITTER_DEG: float		= 18.0	# ± random yaw on the fake normal
 
 const ROAD_W: float				= 5.0
@@ -777,10 +777,10 @@ func _build_mountain_texture_entry(poly_id: int, polygon: PackedVector2Array) ->
 	var t_total0: int = 0
 	if PROFILE_MTN:
 		t_total0 = Time.get_ticks_msec()
-	var aabb_world: Rect2 = GeometryUtils.calculate_bounding_box(polygon)
+	var aabb_polygon: Rect2 = GeometryUtils.calculate_bounding_box(polygon)
 	var pad: int = MTN_TEX_PADDING_PX
-	var padded_pos: Vector2 = Vector2(aabb_world.position.x - float(pad), aabb_world.position.y - float(pad))
-	var padded_size: Vector2 = Vector2(aabb_world.size.x + float(pad * 2), aabb_world.size.y + float(pad * 2))
+	var padded_pos: Vector2 = Vector2(aabb_polygon.position.x - float(pad), aabb_polygon.position.y - float(pad))
+	var padded_size: Vector2 = Vector2(aabb_polygon.size.x + float(pad * 2), aabb_polygon.size.y + float(pad * 2))
 	var aabb_padded: Rect2 = Rect2(padded_pos, padded_size)
 	var tex_w: int = int(ceil(max(1.0, aabb_padded.size.x)))
 	var tex_h: int = int(ceil(max(1.0, aabb_padded.size.y)))
@@ -1129,6 +1129,7 @@ static func generate_rock_facets(outline: PackedVector2Array, rng: RandomNumberG
 		var dot_l: float = clamp(n_rot.dot(-Global.LIGHT_DIR), -1.0, 1.0)
 		var f: float = ROCK_LIGHT_DARK + (ROCK_LIGHT_BRIGHT - ROCK_LIGHT_DARK) * (dot_l + 1.0) * 0.5
 		var color: Color = ROCK_BASE_COLOR * f 
+		color.a = 1.0
 		color.v += rng.randf_range(-0.1, 0.1)
 		facets.append({"poly": tri, "col": color})
 	

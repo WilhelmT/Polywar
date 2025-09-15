@@ -459,7 +459,7 @@ func _draw_lake_shore_rocks(polygon: PackedVector2Array, rng: RandomNumberGenera
 		var rock_facets: Array[Dictionary] = StaticBackgroundDrawer.generate_rock_facets(rock_polygon_intersected, rng)
 		
 		# Draw rock shadow using same method
-		var shadow_poly: PackedVector2Array = GeometryUtils.translate_polygon(rock_polygon, StaticBackgroundDrawer.ROCK_SHADOW_OFFSET)
+		var shadow_poly: PackedVector2Array = GeometryUtils.translate_polygon(rock_polygon_intersected, StaticBackgroundDrawer.ROCK_SHADOW_OFFSET)
 		var shadow_color: Color = StaticBackgroundDrawer.ROCK_BASE_COLOR * StaticBackgroundDrawer.ROCK_SHADOW_DARKEN
 		shadow_color.a = 0.2
 		draw_colored_polygon(shadow_poly, shadow_color)
@@ -467,8 +467,6 @@ func _draw_lake_shore_rocks(polygon: PackedVector2Array, rng: RandomNumberGenera
 		# Draw rock facets
 		for facet: Dictionary in rock_facets:
 			draw_colored_polygon(facet["poly"] as PackedVector2Array, facet["col"] as Color)
-
-		# Defer canopy shadow overlay to MultiMesh pass
 
 func _ensure_rock_shadow_multimesh() -> void:
 	if _unit_triangle_mesh == null:

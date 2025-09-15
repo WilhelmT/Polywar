@@ -7,3 +7,5 @@ res://draw_component.gd
 res://polygon_layer1.gd
 res://water_fill_drawer.gd
 res://river_fill_drawer.gd
+res://static_obstacle_drawer.gd
+res://text_overlay_layer.gd
