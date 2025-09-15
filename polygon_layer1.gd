@@ -259,16 +259,16 @@ func _update_mask_material_for_polygon(mat: ShaderMaterial, poly: PackedVector2A
 func _make_outline_node(area: Area, areas: Array[Area]) -> Array[Line2D]:
 	var lines: Array[Line2D] = []
 	
-	var min_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 0.0
-	var max_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 3.5
-	var strength: float = area.get_total_area() / (Global.world_size.x * Global.world_size.y)
-	var lower_at: float = 0.05
-	var scaled: float = strength / lower_at
-	if scaled > 1.0:
-		scaled = 1.0
-	var t: float = pow(scaled, 0.25)
+	#var min_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 0.0
+	#var max_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 3.5
+	#var strength: float = area.get_total_area() / (Global.world_size.x * Global.world_size.y)
+	#var lower_at: float = 0.05
+	#var scaled: float = strength / lower_at
+	#if scaled > 1.0:
+		#scaled = 1.0
+	#var t: float = pow(scaled, 0.25)
 	#var base_width: float = min_width + (max_width - min_width) * t
-	var base_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 3.5
+	var base_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 3.0
 	
 	var effective_width: float = base_width * 2.0
 

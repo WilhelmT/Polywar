@@ -19,7 +19,7 @@ const TREE_SHADOW_OFFSET: Vector2				= Vector2(6, 6)
 const TREE_TRUNK_OFFSET: Vector2					= Vector2(0, TREE_MIN_RADIUS)
 const TREE_TRUNK_FRAC: float					= 0.2		# trunk size = frac · TREE_MIN_RADIUS
 const TREE_TRUNK_COLOR: Color					= Color(0.29, 0.17, 0.09, 1.0)
-const LIGHT_DARK: float				= 0.25	# darkest a facet may get (× base colour)
+const LIGHT_DARK: float				= 0.5	# darkest a facet may get (× base colour)
 const LIGHT_BRIGHT: float			= 1.00	# brightest (× base colour)
 const FACET_JITTER_DEG: float			= 12.0	# ± rotation for the “normal”
 
