@@ -89,7 +89,7 @@ var simulation_time_accum: float = 0.0
 const SHOCK_TROOPS: bool = false
 const TERRAIN_FORCES: bool = false
 const SABOTEUR: bool = false
-const ENCIRCLEMENT_CORPS: bool = true
+const ENCIRCLEMENT_CORPS: bool = false
 const ARTILLERY: bool = false
 
 # Stats influencing upgrades
@@ -213,7 +213,6 @@ func deployed_fraction(owner_id: int) -> float:
 func take_casualty_from_area_loss(owner_id: int, new_casualties: float) -> void:
 	var casualties_taken: float = new_casualties*deployed_fraction(owner_id)
 	var manpower_regained: float = new_casualties-casualties_taken
-
 	# Can't lose more than deployed.
 	map.total_casualties[owner_id] += casualties_taken
 	map.total_manpower[owner_id] += manpower_regained
@@ -1833,21 +1832,21 @@ func _process_expansions_and_holes(
 					if not (all_area_strengths[area]==0 and all_area_strengths[enemy_area]==0):
 						var attacker_strength_ratio: float = all_area_strengths[area]/(all_area_strengths[area]+all_area_strengths[enemy_area])
 						
-						for enemy_intersect: PackedVector2Array in intersecting_walkable_area_start_of_tick()[walkable_area][enemy_area]:
-							var intersected_parts: Array[PackedVector2Array] = Geometry2D.intersect_polygons(
-								enemy_intersect,
-								combined_expansion
-							)
-							# Casualties taken from trying to conquer territory 
-							# (this is what causes defence to still take casualties).
-							if intersected_parts.size() > 0:
-								var new_casualties: float = 0.0
-								for intersected_part: PackedVector2Array in intersected_parts:
-									new_casualties += polygon_to_numbers(intersected_part)
-								var attacker_casualties: float = (1-attacker_strength_ratio)*new_casualties*deployed_fraction(area.owner_id)
-								var defender_casualties: float = attacker_strength_ratio*new_casualties*deployed_fraction(area.owner_id)
-								take_extra_casualty(area.owner_id, attacker_casualties)
-								take_extra_casualty(enemy_area.owner_id, defender_casualties)
+						#for enemy_intersect: PackedVector2Array in intersecting_walkable_area_start_of_tick()[walkable_area][enemy_area]:
+							#var intersected_parts: Array[PackedVector2Array] = Geometry2D.intersect_polygons(
+								#enemy_intersect,
+								#combined_expansion
+							#)
+							## Casualties taken from trying to conquer territory 
+							## (this is what causes defence to still take casualties).
+							#if intersected_parts.size() > 0:
+								#var new_casualties: float = 0.0
+								#for intersected_part: PackedVector2Array in intersected_parts:
+									#new_casualties += polygon_to_numbers(intersected_part)
+								#var attacker_casualties: float = (1-attacker_strength_ratio)*new_casualties*deployed_fraction(area.owner_id)
+								#var defender_casualties: float = attacker_strength_ratio*new_casualties*deployed_fraction(area.owner_id)
+								#take_extra_casualty(area.owner_id, attacker_casualties)
+								#take_extra_casualty(enemy_area.owner_id, defender_casualties)
 
 				
 				for enemy_intersect: PackedVector2Array in intersecting_walkable_area_start_of_tick()[walkable_area][enemy_area]:
@@ -2406,7 +2405,12 @@ func _physics_process(delta: float) -> void:
 			var clip_pairs: Array = clip_obstacles(area.polygon, areas)
 			_apply_clip_result_to_area(area, clip_pairs, extra_after_clip)
 	areas.append_array(extra_after_clip)
-	
+
+
+	# Important that we clear out any small areas, before clipping weaker. It may
+	# accidentally lead to casualties..
+	remove_small_areas()
+
 	### Battle areas
 	var battle_areas: Array[Area] = []
 	for area: Area in areas:
@@ -2500,15 +2504,16 @@ func _physics_process(delta: float) -> void:
 		if area.owner_id >= 0:
 			area.clear_cache()
 	
+	remove_small_areas()
+
 	_update_bases()
 	_clear_end_of_tick(delta)
 	collect_end_of_tick()
-		
 	balance_strength_manpower_casualties()
 	regain_manpower(delta)
 	clamp_manpower()
 
-	remove_small_areas()
+	
 
 	if print_iter > print_time:
 		if total_strength_by_owner_id.has(1):
@@ -2708,15 +2713,20 @@ func balance_strength_manpower_casualties() -> void:
 		)
 		if diff != 0.0:
 			# Tally difference to casualties in case battle happened
-			if map.total_casualties[owner_id] != total_casualties_start_of_tick[owner_id]:
+			if map.total_casualties[owner_id] != total_casualties_start_of_tick[owner_id] and diff > 0:
 				map.total_casualties[owner_id] += diff
+				#if diff > 0:
+					#map.total_casualties[owner_id] += diff
+				#else:
+					#map.total_manpower[owner_id] += diff
 			else:
 				# Need to update cache to stay constant
 				var manpower_deficit: float = total_unmodified_strength_by_owner_id[owner_id]-total_strength_by_owner_id[owner_id]
 				assert(manpower_deficit >= 0)
 				total_strength_by_owner_id[owner_id] += min(diff, manpower_deficit)
-				map.total_manpower[owner_id] += diff-min(diff, manpower_deficit)
-
+				map.total_manpower[owner_id] += diff#(diff-min(diff, manpower_deficit))
+					
+				
 func clamp_manpower() -> void:
 	for owner_id: int in map.total_manpower.keys():			
 		var total_strength_unmodified: float = Global.get_total_owner_strength_unmodified(
@@ -3464,6 +3474,27 @@ func _collect_front_lines() -> void:
 	
 	_turn_expanding_lines_into_retracting()
 
+func _get_stronger_enemy_intersections_for_walkable_area(
+		walkable_area: Area,
+		area: Area,
+		all_area_strengths: Dictionary[Area, float]
+	) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	if not intersecting_walkable_area_start_of_tick().has(walkable_area):
+		return result
+	var intersecting_in_walkable: Dictionary = intersecting_walkable_area_start_of_tick()[walkable_area]
+	for enemy_area: Area in intersecting_in_walkable.keys():
+		if enemy_area.owner_id < 0:
+			continue
+		if enemy_area.owner_id == area.owner_id:
+			continue
+		if all_area_strengths[area] >= all_area_strengths[enemy_area]:
+			continue
+		var polys: Array = intersecting_in_walkable[enemy_area]
+		if polys.size() > 0:
+			result.append_array(polys)
+	return result
+
 func _turn_expanding_lines_into_retracting() -> void:
 	var all_area_strengths_raw: Dictionary[Area, float] = _compute_all_area_strengths_raw()
 	var areas_sorted_by_strength: Array[Area] = _sort_areas_by_strength(all_area_strengths_raw)
@@ -3482,53 +3513,35 @@ func _turn_expanding_lines_into_retracting() -> void:
 		for area: Area in areas_sorted_by_strength:
 			if area.owner_id < 0:
 				continue
-				
-			# Also take this opportunity to convert expanding lines to retracting
-			# lines for visualization
+			
 			var expanding_lines: Array[PackedVector2Array] = newly_expanded_polylines[area][walkable_area]
+			if expanding_lines.size() == 0:
+				continue
 			var new_expanding_lines: Array[PackedVector2Array] = []
 			var new_retracting_lines: Array[PackedVector2Array] = []
-
-			# Collect all enemy intersections from stronger enemies
-			var all_enemy_intersections: Array[PackedVector2Array] = []
-			for enemy_area: Area in areas_sorted_by_strength:
-				if enemy_area.owner_id < 0: continue
-				if enemy_area.owner_id == area.owner_id: continue
-				if all_area_strengths[area] >= all_area_strengths[enemy_area]: continue
-				
-				# Check if this enemy area has intersections in the original area
-				if (
-					walkable_area in intersecting_walkable_area_start_of_tick() and
-					enemy_area in intersecting_walkable_area_start_of_tick()[walkable_area]
-				):
-					all_enemy_intersections.append_array(intersecting_walkable_area_start_of_tick()[walkable_area][enemy_area])
-
-			# If no enemy intersections, all lines remain expanding
-			if all_enemy_intersections.is_empty():
-				new_expanding_lines = expanding_lines
-			else:
-				# Process each expanding line against all enemy intersections
-				for expanding_line: PackedVector2Array in expanding_lines:
-					var current_expanding: Array[PackedVector2Array] = [expanding_line]
-					
-					for enemy_intersection: PackedVector2Array in all_enemy_intersections:
-						var next_expanding: Array[PackedVector2Array] = []
-						
-						for current_line: PackedVector2Array in current_expanding:
-							# Parts that don't intersect (still expanding)
-							next_expanding.append_array(
-								Geometry2D.clip_polyline_with_polygon(current_line, enemy_intersection)
-							)
-							# Parts that intersect (now retracting)
-							new_retracting_lines.append_array(
-								Geometry2D.intersect_polyline_with_polygon(current_line, enemy_intersection)
-							)
-						
-						current_expanding = next_expanding
-					
-					# Add final expanding parts
-					new_expanding_lines.append_array(current_expanding)
-
+			var all_enemy_intersections: Array[PackedVector2Array] = _get_stronger_enemy_intersections_for_walkable_area(
+				walkable_area,
+				area,
+				all_area_strengths
+			)
+			if all_enemy_intersections.size() == 0:
+				newly_expanded_polylines[area][walkable_area] = expanding_lines
+				newly_retracting_polylines[area][walkable_area] = new_retracting_lines
+				continue
+			for expanding_line: PackedVector2Array in expanding_lines:
+				var current_expanding: Array[PackedVector2Array] = [expanding_line]
+				for enemy_intersection: PackedVector2Array in all_enemy_intersections:
+					var next_expanding: Array[PackedVector2Array] = []
+					for current_line: PackedVector2Array in current_expanding:
+						next_expanding.append_array(
+							Geometry2D.clip_polyline_with_polygon(current_line, enemy_intersection)
+						)
+						new_retracting_lines.append_array(
+							Geometry2D.intersect_polyline_with_polygon(current_line, enemy_intersection)
+						)
+					next_expanding = next_expanding
+					current_expanding = next_expanding
+				new_expanding_lines.append_array(current_expanding)
 			newly_expanded_polylines[area][walkable_area] = new_expanding_lines
 			newly_retracting_polylines[area][walkable_area] = new_retracting_lines
 
