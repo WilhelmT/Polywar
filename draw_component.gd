@@ -51,7 +51,7 @@ var static_textures_generated: bool = false
 # Highlight textures
 var territory_highlight_history: Array = [] # Each element is [area, polygon, remaining_time]
 const TERRITORY_HIGHLIGHT_DURATION: float = 0.25
-const TERRITORY_ENCIRCLEMENT_HIGHLIGHT_DURATION: float = 1.0
+const TERRITORY_ENCIRCLEMENT_HIGHLIGHT_DURATION: float = 0.66
 var encirclement_text_history: Array = [] # Each element is [position, text, remaining_time]
 const TEXT_RISE_DISTANCE: float = 50.0
 

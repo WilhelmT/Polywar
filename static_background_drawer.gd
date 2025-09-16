@@ -53,12 +53,12 @@ const RIDGE_MAIN_DISTANCE_BIAS: float = 2.0
 const RIDGE_MAIN_NORMAL_DOMINANCE: float = 0.5
 
 const LIGHT_Z: float = 0.90					# z component of the light dir (0..1)
-const BASE_SLOPE_DEG: float = 18.0			# outward tilt near polygon edge
+const BASE_SLOPE_DEG: float = 0.0			# outward tilt near polygon edge
 const BASE_EDGE_EXP: float = 0.90			# curve of the edge-tilt falloff
-const RIDGE_SLOPE_DEG: float = 38.0			# max steepness exactly on the crest
-const RIDGE_WIDTH_L1: float = 4*28.0			# half-width (px) where level-1 ridge affects normals
-const RIDGE_WIDTH_L2: float = 4*18.0			# same for level-2
-const RIDGE_SHARPNESS_POW: float = 4.0		# ↑ sharper near crest, flatter away
+const RIDGE_SLOPE_DEG: float = 45.0			# max steepness exactly on the crest
+const RIDGE_WIDTH_L1: float = 6*28.0			# half-width (px) where level-1 ridge affects normals
+const RIDGE_WIDTH_L2: float = 6*18.0			# same for level-2
+const RIDGE_SHARPNESS_POW: float = 6.0		# ↑ sharper near crest, flatter away
 const MIN_WIDTH_PX: float = 1.0				# avoids division by zero
 
 
@@ -926,7 +926,7 @@ func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Colo
 		lambert = 0.0
 	else:
 		lambert = lambert
-	var ridge_norm_mul: float = lambert
+	var ridge_norm_mul: float = (lambert*0.5+lambert*lambert*0.5)
 	
 	var t_norm: float = 0.0
 	if max_edge_dist > 0.0:
@@ -935,9 +935,9 @@ func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Colo
 		t_norm = 0.0
 	var eased: float = pow(t_norm, 1.0 / 2.0)
 	eased = min(eased, 0.75)
-	var col: Color = base_col * (0.75 * ridge_norm_mul + 0.5 * f_light)
+	var col: Color = base_col * (0.75 * ridge_norm_mul + 0.75 * f_light)
 	col = _composite_over_color(col, Global.background_color)
-	var prox_mul: float = 0.5 + eased * 0.5 + min(0.75, 2.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 3.0))
+	var prox_mul: float = 0.5 + eased * 0.5 + min(1.0, 2.0 * pow(eased, 2.0) * pow(1.0 - ridge_dist_mul, 3.0))
 	if prox_mul > 1.0:
 		prox_mul = 1.0
 	else:
@@ -945,6 +945,30 @@ func _compute_mountain_pixel_color(p: Vector2, centroid: Vector2, base_col: Colo
 	col = col * prox_mul
 	col.a = 1.0
 	return col
+
+#func _compute_mountain_pixel_color(
+		#p: Vector2, centroid: Vector2, base_col: Color,
+		#ridges: Array[Dictionary], edge_dist: float, max_edge_dist: float
+	#) -> Color:
+	#var N: Vector3 = _compute_normal3d_for_pixel(p, centroid, ridges, edge_dist, max_edge_dist)
+#
+	#var L: Vector3 = Vector3(-Global.LIGHT_DIR.x, -Global.LIGHT_DIR.y, LIGHT_Z)
+	#L = L.normalized()
+#
+	#var lambert: float = N.dot(L)
+	#if lambert < 0.0:
+		#lambert = 0.0
+	#else:
+		#lambert = lambert
+#
+	## Soft half-Lambert for nicer rolloff
+	#var f_light: float = 0.5 * lambert + 0.5 * lambert * lambert
+#
+	#var col: Color = base_col * (0.60 + 0.80 * f_light)
+	#col = _composite_over_color(col, Global.background_color)
+	#col.a = 1.0
+	#return col
+
 
 func _draw_textured_polygon_with_aabb(polygon: PackedVector2Array, texture: Texture2D, aabb: Rect2) -> void:
 	if texture == null:
