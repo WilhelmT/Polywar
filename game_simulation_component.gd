@@ -211,7 +211,8 @@ func deployed_fraction(owner_id: int) -> float:
 	return strength_fraction
 
 func take_casualty_from_area_loss(owner_id: int, new_casualties: float) -> void:
-	var casualties_taken: float = new_casualties*deployed_fraction(owner_id)
+	var deployed_fraction: float = deployed_fraction(owner_id)
+	var casualties_taken: float = new_casualties*deployed_fraction
 	var manpower_regained: float = new_casualties-casualties_taken
 	# Can't lose more than deployed.
 	map.total_casualties[owner_id] += casualties_taken
@@ -787,7 +788,7 @@ func _add_expanded_area(
 	delta: float,
 	add_newly_expanded_area: bool,
 	area_to_walkable_area_polygons: Dictionary[Area, PackedVector2Array],
-	extra_clip_areas: Dictionary[Area, Array],
+	new_areas_expanded: Dictionary[Area, Array],
 ) -> bool:
 	if GeometryUtils.remove_duplicate_points(new_area.polygon).size() < 3:
 		return false
@@ -809,8 +810,8 @@ func _add_expanded_area(
 	for clip: PackedVector2Array in clipped:
 		total_manpower_consumed += polygon_to_numbers(clip)
 		var total_manpower_regained: float = 0.0
-		for extra_clip_area: Area in extra_clip_areas.get(walkable_area, []):
-			for intersect: PackedVector2Array in Geometry2D.intersect_polygons(extra_clip_area.polygon, clip):
+		for clip_area: Area in new_areas_expanded.get(walkable_area, []):
+			for intersect: PackedVector2Array in Geometry2D.intersect_polygons(clip_area.polygon, clip):
 				total_manpower_regained += polygon_to_numbers(intersect)
 		map.total_manpower[area.owner_id] += total_manpower_regained
 	map.total_manpower[area.owner_id] -= total_manpower_consumed
@@ -841,7 +842,6 @@ func _create_expanded_areas(
 	expanded: PackedVector2Array,
 	expanded_holes: Array[PackedVector2Array],
 	new_areas_expanded: Dictionary[Area, Array],
-	extra_clip_areas: Dictionary[Area, Array],
 	walkable_area: Area,
 	extra_source_walkable_areas: Array[Area],
 	delta: float,
@@ -869,7 +869,7 @@ func _create_expanded_areas(
 		delta,
 		add_newly_expanded_area,
 		area_to_walkable_area_polygons,
-		extra_clip_areas
+		new_areas_expanded
 	):
 		expanded_sub_area_origin_map[new_area] = area
 		if not new_areas_expanded.has(walkable_area):
@@ -918,8 +918,11 @@ func expand_areas(delta: float) -> void:
 			continue
 		area_to_walkable_area_polygons[area] = area.polygon
 	
-	var new_areas_expanded_for_new: Dictionary[Area, Array] = {}
+	
+	var expanded_areas: Array[Area] = []
 	for area: Area in areas_sorted_by_strength:
+		var new_areas_expanded: Dictionary[Area, Array] = {}
+
 		if area.owner_id < 0:
 			continue
 				
@@ -933,8 +936,7 @@ func expand_areas(delta: float) -> void:
 					delta,
 					all_area_strengths,
 					all_area_strengths_raw,
-					new_areas_expanded_for_new,
-					new_areas_expanded_for_new,
+					new_areas_expanded,
 					area_to_walkable_area_polygons
 				)
 			)
@@ -950,8 +952,7 @@ func expand_areas(delta: float) -> void:
 						walkable_area,
 						delta,
 						all_area_strengths_raw,
-						new_areas_expanded_for_new,
-						new_areas_expanded_for_new,
+						new_areas_expanded,
 						area_to_walkable_area_polygons
 					)
 				)
@@ -964,19 +965,17 @@ func expand_areas(delta: float) -> void:
 					delta,
 					all_area_strengths_over_all_walkable_areas,
 					all_area_strengths_raw,
-					new_areas_expanded_for_new,
-					new_areas_expanded_for_new,
+					new_areas_expanded,
 					area_to_walkable_area_polygons
 				)
 			)
 
-	var new_areas_expanded: Array[Area] = []
-	for walkable_area: Area in walkable_areas():
-		if new_areas_expanded_for_new.has(walkable_area):
-			new_areas_expanded.append_array(
-				new_areas_expanded_for_new[walkable_area]
+		for walkable_area: Area in new_areas_expanded.keys():
+			expanded_areas.append_array(
+				new_areas_expanded[walkable_area]
 			)
-	areas.append_array(new_areas_expanded)
+			
+	areas.append_array(expanded_areas)
 	areas.append_array(extra_areas_created)
 
 
@@ -1178,7 +1177,6 @@ func _process_expansion_for_new_walkable_area(
 	all_area_strengths_over_all_walkable_areas: Dictionary[Area, Dictionary],
 	all_area_strengths_raw: Dictionary[Area, float],
 	new_areas_expanded: Dictionary[Area, Array],
-	extra_clip_areas: Dictionary[Area, Array],
 	area_to_walkable_area_polygons: Dictionary[Area, PackedVector2Array]
 ) -> Array[Area]:
 	var extra_enemy_areas_created: Array[Area] = []
@@ -1384,7 +1382,6 @@ func _process_expansion_for_new_walkable_area(
 						all_area_strengths,
 						all_area_strengths_raw,
 						new_areas_expanded,
-						extra_clip_areas,
 						true,
 						area_to_walkable_area_polygons,
 						total_area_that_would_have_cut_enemy
@@ -1398,7 +1395,6 @@ func _process_expansion_for_boundaries(
 	delta: float,
 	all_area_strengths_raw: Dictionary[Area, float],
 	new_areas_expanded: Dictionary[Area, Array],
-	extra_clip_areas: Dictionary[Area, Array],
 	area_to_walkable_area_polygons: Dictionary[Area, PackedVector2Array],
 ) -> Array[Area]:
 	
@@ -1621,7 +1617,6 @@ func _process_expansion_for_boundaries(
 					all_area_strengths_raw,
 					all_area_strengths_raw,
 					new_areas_expanded,
-					extra_clip_areas,
 					true,
 					area_to_walkable_area_polygons,
 					total_area_that_would_have_cut_enemy
@@ -1636,7 +1631,6 @@ func _process_expansion_for_existing_walkable_area(
 	all_area_strengths: Dictionary[Area, float],
 	all_area_strengths_raw: Dictionary[Area, float],
 	new_areas_expanded: Dictionary[Area, Array],
-	extra_clip_areas: Dictionary[Area, Array],
 	area_to_walkable_area_polygons: Dictionary[Area, PackedVector2Array]
 ) -> Array[Area]:
 	var extra_enemy_areas_created: Array[Area] = []
@@ -1776,7 +1770,6 @@ func _process_expansion_for_existing_walkable_area(
 				all_area_strengths,
 				all_area_strengths_raw,
 				new_areas_expanded,
-				extra_clip_areas,
 				true,
 				area_to_walkable_area_polygons,
 				total_area_that_would_have_cut_enemy
@@ -1794,7 +1787,6 @@ func _process_expansions_and_holes(
 	all_area_strengths: Dictionary[Area, float],
 	all_area_strengths_raw: Dictionary[Area, float],
 	new_areas_expanded: Dictionary[Area, Array],
-	extra_clip_areas: Dictionary[Area, Array],
 	add_newly_expanded_area: bool,
 	area_to_walkable_area_polygons: Dictionary[Area, PackedVector2Array],
 	total_area_that_would_have_cut_enemy: Dictionary[Area, float],
@@ -1956,12 +1948,23 @@ func _process_expansions_and_holes(
 			
 			# Casualties are exchanged for manpower due to battle.
 			if _total_area_that_would_have_cut_enemy>_total_area_that_actually_cut_enemy:
-				var defender_casualties: float = attacker_strength_ratio*(_total_area_that_would_have_cut_enemy-_total_area_that_actually_cut_enemy)*deployed_fraction(area.owner_id)
+				var defender_casualties: float = (
+					attacker_strength_ratio*
+					(
+						_total_area_that_would_have_cut_enemy-
+						_total_area_that_actually_cut_enemy
+					)*
+					deployed_fraction(area.owner_id)
+				)
 				take_extra_casualty(enemy_area.owner_id, defender_casualties)
 			
 			# The enemy actually loses area
 			take_casualty_from_area_loss(enemy_area.owner_id, _total_area_that_actually_cut_enemy)
-			var attacker_casualties: float = (1-attacker_strength_ratio)*_total_area_that_would_have_cut_enemy*deployed_fraction(area.owner_id)
+			var attacker_casualties: float = (
+				(1-attacker_strength_ratio)*
+				_total_area_that_would_have_cut_enemy*
+				deployed_fraction(area.owner_id)
+			)
 			var saboteur_bonus: float = 1.0
 			if SABOTEUR and area.owner_id != PLAYER_ID:
 				saboteur_bonus = SABOTEUR_BONUS
@@ -1969,7 +1972,7 @@ func _process_expansions_and_holes(
 			take_extra_casualty(area.owner_id, saboteur_bonus*attacker_casualties)
 		else:
 			# By defaylt, no casualties taken on either side	
-			map.total_manpower[enemy_area.owner_id] += deployed_fraction(enemy_area.owner_id)*_total_area_that_actually_cut_enemy
+			map.total_manpower[enemy_area.owner_id] += _total_area_that_actually_cut_enemy
 
 	for expansion_and_holes: Array in expansions_and_holes:
 		var combined_expansion: PackedVector2Array = expansion_and_holes[0]
@@ -1979,7 +1982,6 @@ func _process_expansions_and_holes(
 			combined_expansion,
 			offset_polygons_clipped_holes,
 			new_areas_expanded,
-			extra_clip_areas,
 			walkable_area,
 			extra_source_walkable_areas,
 			delta,
@@ -2499,7 +2501,7 @@ func _physics_process(delta: float) -> void:
 			assert(not Geometry2D.is_polygon_clockwise(area.polygon))
 
 	
-	# Collect as the last thing we do to get all visualizations right.
+	# Collect after all updates to areas to get all visualizations right.
 	for area: Area in areas:
 		if area.owner_id >= 0:
 			area.clear_cache()
