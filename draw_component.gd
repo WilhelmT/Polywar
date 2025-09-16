@@ -51,7 +51,7 @@ var static_textures_generated: bool = false
 # Highlight textures
 var territory_highlight_history: Array = [] # Each element is [area, polygon, remaining_time]
 const TERRITORY_HIGHLIGHT_DURATION: float = 0.25
-const TERRITORY_ENCIRCLEMENT_HIGHLIGHT_DURATION: float = 0.66
+const TERRITORY_ENCIRCLEMENT_HIGHLIGHT_DURATION: float = 1.0
 var encirclement_text_history: Array = [] # Each element is [position, text, remaining_time]
 const TEXT_RISE_DISTANCE: float = 50.0
 
@@ -455,8 +455,8 @@ func generate_static_textures() -> void:
 	var map_generator: MapGenerator = get_parent().map_generator
 	var map: Global.Map = get_parent().map
 	# Simple mode only in CREATE (FINAL uses full rendering)
-	var simple: bool = (get_parent().current_mode == Global.GameMode.CREATE)
-	#var simple: bool = true
+	#var simple: bool = (get_parent().current_mode == Global.GameMode.CREATE)
+	var simple: bool = true
 	
 	# Set up background drawer
 	var background_drawer_1 = background_viewport_1.get_child(0)

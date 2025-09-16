@@ -1,7 +1,7 @@
 extends Node2D
 class_name GameSimulationComponent
 
-const USE_UNION: bool = false
+const USE_UNION: bool = true
 
 
 const PLAYER_ID: int = 0

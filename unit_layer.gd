@@ -869,9 +869,9 @@ func _calc_group_slot_counts(area: Area, smooth: Dictionary, needed: int) -> Dic
 	
 	# Build the ordered list of groups we need to consider
 	var slot_grps: Array = smooth.keys() as Array
-	for g in prev_slots.keys():
-		if slot_grps.has(g) == false:
-			slot_grps.append(g)
+	#for g in prev_slots.keys():
+		#if slot_grps.has(g) == false:
+			#slot_grps.append(g)
 	
 	slot_grps.sort_custom(func(a: Variant, b: Variant) -> bool:
 		var av: float = 0.0
@@ -1702,7 +1702,7 @@ func _integrate_agents(delta: float) -> void:
 							GameSimulationComponent.EXPANSION_SPEED,
 							_sim().get_strength_density(ag.area),
 							_sim().map,
-							ag.group,
+							ag.group if not _sim().USE_UNION else _sim().union_walkable_areas_to_original_walkable_areas[ag.group][0],
 							false,
 						)
 						#desired_speed = max(desired_speed, 1.0*expansion_speed)
