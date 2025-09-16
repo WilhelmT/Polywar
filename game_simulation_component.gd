@@ -1831,23 +1831,23 @@ func _process_expansions_and_holes(
 				):
 					# If an area was recently created.
 					if not (all_area_strengths[area]==0 and all_area_strengths[enemy_area]==0):
-						
 						var attacker_strength_ratio: float = all_area_strengths[area]/(all_area_strengths[area]+all_area_strengths[enemy_area])
-					
-						var intersected_parts: Array[PackedVector2Array] = Geometry2D.intersect_polygons(
-							enemy_area.polygon,
-							combined_expansion
-						)
-						# Casualties taken from trying to conquer territory 
-						# (this is what causes defence to still take casualties).
-						if intersected_parts.size() > 0:
-							var new_casualties: float = 0.0
-							for intersected_part: PackedVector2Array in intersected_parts:
-								new_casualties += polygon_to_numbers(intersected_part)
-							var attacker_casualties: float = (1-attacker_strength_ratio)*new_casualties*deployed_fraction(area.owner_id)
-							var defender_casualties: float = attacker_strength_ratio*new_casualties*deployed_fraction(area.owner_id)
-							take_extra_casualty(area.owner_id, attacker_casualties)
-							take_extra_casualty(enemy_area.owner_id, defender_casualties)
+						
+						for enemy_intersect: PackedVector2Array in intersecting_walkable_area_start_of_tick()[walkable_area][enemy_area]:
+							var intersected_parts: Array[PackedVector2Array] = Geometry2D.intersect_polygons(
+								enemy_intersect,
+								combined_expansion
+							)
+							# Casualties taken from trying to conquer territory 
+							# (this is what causes defence to still take casualties).
+							if intersected_parts.size() > 0:
+								var new_casualties: float = 0.0
+								for intersected_part: PackedVector2Array in intersected_parts:
+									new_casualties += polygon_to_numbers(intersected_part)
+								var attacker_casualties: float = (1-attacker_strength_ratio)*new_casualties*deployed_fraction(area.owner_id)
+								var defender_casualties: float = attacker_strength_ratio*new_casualties*deployed_fraction(area.owner_id)
+								take_extra_casualty(area.owner_id, attacker_casualties)
+								take_extra_casualty(enemy_area.owner_id, defender_casualties)
 
 				
 				for enemy_intersect: PackedVector2Array in intersecting_walkable_area_start_of_tick()[walkable_area][enemy_area]:
@@ -3143,10 +3143,6 @@ func _collect_intersections_with_walkable_areas() -> void:
 	for original_area: Area in map.original_walkable_areas:
 		intersecting_original_walkable_area_start_of_tick[original_area] = {}
 	
-	# Initialize union intersections
-	for union_area: Area in union_walkable_areas:
-		intersecting_union_walkable_area_start_of_tick[union_area] = {}
-	
 	for area: Area in areas:
 		if area.owner_id < 0:
 			continue
@@ -3192,31 +3188,36 @@ func _collect_intersections_with_walkable_areas() -> void:
 					intersecting_original_walkable_area_start_of_tick[original_area][area] = intersecting_polygons
 				original_walkable_area_covered[original_area] = fully_covered
 		
-		# Collect polygons to batch process for union areas
-		var union_polygons_to_intersect: Array[PackedVector2Array] = []
-		var union_area_keys: Array = []
-		
-		# Process each union area for intersections - collect for batching
-		for union_area: Area in union_walkable_areas:
-			var union_rect: Rect2 = GeometryUtils.calculate_bounding_box(union_area.polygon)
+		if USE_UNION:
+			# Initialize union intersections
+			for union_area: Area in union_walkable_areas:
+				intersecting_union_walkable_area_start_of_tick[union_area] = {}
 			
-			# Fast bounds check
-			if not area_bounds.intersects(union_rect):
-				continue
+			# Collect polygons to batch process for union areas
+			var union_polygons_to_intersect: Array[PackedVector2Array] = []
+			var union_area_keys: Array = []
 			
-			union_polygons_to_intersect.append(union_area.polygon)
-			union_area_keys.append(union_area)
-		
-		# Batch process union area intersections using Clipper2
-		if union_polygons_to_intersect.size() > 0:
-			var union_results: Array = intersect_polygons_batched(union_polygons_to_intersect, area.polygon)
-			
-			for i: int in union_results.size():
-				var union_area: Area = union_area_keys[i]
-				var union_intersecting_polygons: Array = union_results[i]
+			# Process each union area for intersections - collect for batching
+			for union_area: Area in union_walkable_areas:
+				var union_rect: Rect2 = GeometryUtils.calculate_bounding_box(union_area.polygon)
 				
-				if union_intersecting_polygons.size() != 0:
-					intersecting_union_walkable_area_start_of_tick[union_area][area] = union_intersecting_polygons
+				# Fast bounds check
+				if not area_bounds.intersects(union_rect):
+					continue
+				
+				union_polygons_to_intersect.append(union_area.polygon)
+				union_area_keys.append(union_area)
+		
+			# Batch process union area intersections using Clipper2
+			if union_polygons_to_intersect.size() > 0:
+				var union_results: Array = intersect_polygons_batched(union_polygons_to_intersect, area.polygon)
+				
+				for i: int in union_results.size():
+					var union_area: Area = union_area_keys[i]
+					var union_intersecting_polygons: Array = union_results[i]
+					
+					if union_intersecting_polygons.size() != 0:
+						intersecting_union_walkable_area_start_of_tick[union_area][area] = union_intersecting_polygons
 
 		var area_sources: Array = []
 		for walkable_area: Area in walkable_areas():
@@ -3460,7 +3461,10 @@ func _collect_front_lines() -> void:
 		_collect_holding_line_circumference(
 			walkable_area,
 		)
+	
+	_turn_expanding_lines_into_retracting()
 
+func _turn_expanding_lines_into_retracting() -> void:
 	var all_area_strengths_raw: Dictionary[Area, float] = _compute_all_area_strengths_raw()
 	var areas_sorted_by_strength: Array[Area] = _sort_areas_by_strength(all_area_strengths_raw)
 
