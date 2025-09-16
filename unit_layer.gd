@@ -9,7 +9,7 @@ const spawn_fade_time:		float	= 0.25
 const die_fade_time:		float	= 0.25
 const max_speed:			float	= 6000.0
 const min_speed:			float	= 0.0
-const unit_size:			int	= 10
+const unit_size:			int	= 12
 const unit_alpha: float = 1.0#0.75
 const HOLDING_SCALE : float = 1.0#sqrt(2.0)
 const TRAIL_MINIMUM_LENGTH: float = 0.1
@@ -1697,21 +1697,26 @@ func _integrate_agents(delta: float) -> void:
 				
 					# Only apply expansion speed boost for offensive lines (not holding/defensive lines)
 					if not ag.holding and ag.group != null:
-						# TODO use air, borders, min, max
-						var expansion_speed: float = Global.get_expansion_speed(
-							GameSimulationComponent.EXPANSION_SPEED,
-							_sim().get_strength_density(ag.area),
-							_sim().map,
-							ag.group if not _sim().USE_UNION else _sim().union_walkable_areas_to_original_walkable_areas[ag.group][0],
-							false,
-						)
-						#desired_speed = max(desired_speed, 1.0*expansion_speed)
 						
-						# To get fast but smooth movement close.
-						desired_speed = max(desired_speed, 1.0 * expansion_speed * (pow(dist+1, 1.0/2.0)-1))
-						# To get fast movement far away.
-						desired_speed = max(desired_speed, 0.05 * expansion_speed * dist)
-						
+						if (
+							not _sim().USE_UNION or
+							_sim().union_walkable_areas_to_original_walkable_areas.has(ag.group)
+						):
+							# TODO use air, borders, min, max
+							var expansion_speed: float = Global.get_expansion_speed(
+								GameSimulationComponent.EXPANSION_SPEED,
+								_sim().get_strength_density(ag.area),
+								_sim().map,
+								ag.group if not _sim().USE_UNION else _sim().union_walkable_areas_to_original_walkable_areas[ag.group][0],
+								false,
+							)
+							#desired_speed = max(desired_speed, 1.0*expansion_speed)
+							
+							# To get fast but smooth movement close.
+							desired_speed = max(desired_speed, 1.0 * expansion_speed * (pow(dist+1, 1.0/2.0)-1))
+							# To get fast movement far away.
+							desired_speed = max(desired_speed, 0.05 * expansion_speed * dist)
+							
 					#if desired_speed > max_speed:
 						#print(1)
 					desired_speed = max(min(max_speed, desired_speed), min_speed)

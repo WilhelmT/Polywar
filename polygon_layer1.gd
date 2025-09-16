@@ -268,7 +268,7 @@ func _make_outline_node(area: Area, areas: Array[Area]) -> Array[Line2D]:
 		#scaled = 1.0
 	#var t: float = pow(scaled, 0.25)
 	#var base_width: float = min_width + (max_width - min_width) * t
-	var base_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 3.0
+	var base_width: float = DrawComponent.AREA_OUTLINE_THICKNESS * 3.5
 	
 	var effective_width: float = base_width * 2.0
 

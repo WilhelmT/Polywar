@@ -1,7 +1,7 @@
 extends Node2D
 class_name GameSimulationComponent
 
-const USE_UNION: bool = true
+const USE_UNION: bool = false
 
 
 const PLAYER_ID: int = 0
@@ -3154,7 +3154,13 @@ func _collect_intersections_with_walkable_areas() -> void:
 	# Process areas - First pass: collect intersections and coverage info
 	for original_area: Area in map.original_walkable_areas:
 		intersecting_original_walkable_area_start_of_tick[original_area] = {}
-	
+
+	if USE_UNION:
+		# Initialize union intersections
+		for union_area: Area in union_walkable_areas:
+			intersecting_union_walkable_area_start_of_tick[union_area] = {}
+		
+
 	for area: Area in areas:
 		if area.owner_id < 0:
 			continue
@@ -3201,10 +3207,6 @@ func _collect_intersections_with_walkable_areas() -> void:
 				original_walkable_area_covered[original_area] = fully_covered
 		
 		if USE_UNION:
-			# Initialize union intersections
-			for union_area: Area in union_walkable_areas:
-				intersecting_union_walkable_area_start_of_tick[union_area] = {}
-			
 			# Collect polygons to batch process for union areas
 			var union_polygons_to_intersect: Array[PackedVector2Array] = []
 			var union_area_keys: Array = []
@@ -3448,9 +3450,7 @@ func _collect_front_lines() -> void:
 			for walkable_area: Area in walkable_areas():
 				var expanding_polylines: Array[PackedVector2Array] = newly_expanded_polylines[area][walkable_area]
 				if should_expand_subarea(area, walkable_area):
-					var total_circumference: float = 0.0
-					#if not intersecting_original_walkable_area_start_of_tick[original_area].has(area):
-						#continue				
+					var total_circumference: float = 0.0			
 					for poly_intersect: PackedVector2Array in Geometry2D.intersect_polyline_with_polygon(slightly_offset_area_polyline, walkable_area.polygon):
 						total_circumference += GeometryUtils.calculate_polyline_circumference(poly_intersect)
 						expanding_polylines.append(poly_intersect)
