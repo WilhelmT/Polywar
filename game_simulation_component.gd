@@ -2738,7 +2738,7 @@ func clamp_manpower() -> void:
 			total_weighted_circumferences,
 			base_ownerships,
 		)
-		var maximum_fielded_manpower: float = total_strength_unmodified * UnitLayer.MAX_UNITS*UnitLayer.NUMBER_PER_UNIT
+		var maximum_fielded_manpower: float = total_strength_unmodified
 		
 		if Global.get_doctrine(owner_id) == Global.Doctrine.MASS_MOBILISATION:
 			var actual_maximum_fielded_manpower: float = 0.0
