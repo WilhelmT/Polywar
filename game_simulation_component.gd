@@ -3357,7 +3357,6 @@ func intersect_many_polyline_with_polygon_deterministic(
 ):
 	return gd_extension_clip.intersect_many_polyline_with_polygon_deterministic(polylines, polygon, eps)
 
-
 func intersect_polygons_batched(
 	polygons: Array,
 	subject_polygon: PackedVector2Array
@@ -3477,13 +3476,13 @@ func _collect_expanding_lines() -> void:
 				continue
 			var total_circum_sum_line: float = 0.0
 			for gi2: int in grouped_line.size():
-				var walkable_key: Area = batch_keys[gi2]
-				var expanding_out2: Array[PackedVector2Array] = newly_expanded_polylines[area][walkable_key]
+				var walkable_area: Area = batch_keys[gi2]
+				var expanding_out: Array[PackedVector2Array] = newly_expanded_polylines[area][walkable_area]
 				var segs_for_poly: Array = grouped_line[gi2]
-				for seg3 in segs_for_poly:
+				for seg3: PackedVector2Array in segs_for_poly:
 					var poly_intersect3: PackedVector2Array = seg3
 					total_circum_sum_line += GeometryUtils.calculate_polyline_circumference(poly_intersect3)
-					expanding_out2.append(poly_intersect3)
+					expanding_out.append(poly_intersect3)
 			total_weighted_circumferences[area] += total_circum_sum_line
 			total_active_circumferences[area] += total_circum_sum_line
 
