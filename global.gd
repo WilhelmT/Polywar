@@ -48,7 +48,6 @@ class Map:
 	var original_walkable_area_and_obstacles_bounds: Dictionary[Area, Dictionary]
 	var original_walkable_area_bounds_rect: Dictionary[Area, Rect2]
 	var original_walkable_area_shared_borders: Dictionary[Area, Dictionary] #  Dictionary[Area, Dictionary[Area, PackedVector2Array]]
-	var original_walkable_areas_expanded_along_shared_borders: Dictionary[Area, Dictionary]
 	var bases: Array[Base]
 	var base_index_by_original_id: Dictionary[int, int]
 	var rivers: Array[PackedVector2Array]
@@ -91,7 +90,6 @@ class Map:
 		original_walkable_area_and_obstacles_bounds = {}
 		original_walkable_area_bounds_rect = {}
 		original_walkable_area_shared_borders = {}
-		original_walkable_areas_expanded_along_shared_borders = {}
 		bases = []
 		base_index_by_original_id = {}
 		rivers = []

@@ -1555,39 +1555,6 @@ func _populate_tanks(map: Global.Map) -> void:
 
 		map.tanks.append(tank)
 
-func _calculate_areas_expanded_along_shared_borders(
-	original_walkable_areas: Array[Area],
-	adjacent_original_walkable_area: Dictionary[Area, Array],
-	original_area_index_by_polygon_id: Dictionary[int, int]
-) -> Dictionary[Area, Dictionary]:
-	
-	var areas_expanded_along_shared_borders: Dictionary[Area, Dictionary] = {}
-	var delta: float = 1.0/Engine.physics_ticks_per_second
-	for original_area: Area in original_walkable_areas:
-		for adjacent_original_area: Area in adjacent_original_walkable_area[original_area]:			
-			var slightly_expanded_adjacent_original_area_polygon: PackedVector2Array = GeometryUtils.find_largest_polygon(
-				Geometry2D.offset_polygon(
-					adjacent_original_area.polygon,
-					delta,
-					Geometry2D.JOIN_MITER
-				)
-			)
-			slightly_expanded_adjacent_original_area_polygon = GeometryUtils.find_largest_polygon(
-				Geometry2D.intersect_polygons(
-					slightly_expanded_adjacent_original_area_polygon,
-					GeometryUtils.find_largest_polygon(
-						Geometry2D.merge_polygons(
-							adjacent_original_area.polygon,
-							original_area.polygon
-						)
-					)
-				)
-			)
-			if not areas_expanded_along_shared_borders.has(original_area):
-				areas_expanded_along_shared_borders[original_area] = {}
-			areas_expanded_along_shared_borders[original_area][adjacent_original_area] = slightly_expanded_adjacent_original_area_polygon
-	return areas_expanded_along_shared_borders
-
 func update_map(
 	map: Global.Map,
 	areas: Array[Area],
@@ -1649,12 +1616,7 @@ func update_map(
 	map.original_walkable_areas_and_obstacles_spatial_grid = setup_area_spatial_grid(map.original_walkable_areas+map.original_obstacles, map.original_walkable_area_and_obstacles_bounds)
 
 	map.original_walkable_area_shared_borders = calculate_shared_borders(map.original_walkable_areas)
-	map.original_walkable_areas_expanded_along_shared_borders = _calculate_areas_expanded_along_shared_borders(
-		map.original_walkable_areas,
-		map.adjacent_original_walkable_area,
-		map.original_area_index_by_polygon_id
-	)
-	
+
 	if generate_water_features == true:
 		if not generate_rivers(map):
 			return false
