@@ -86,11 +86,11 @@ signal requires_redraw
 var simulation_time_accum: float = 0.0
 
 # Upgrades
-const SHOCK_TROOPS: bool = false
+const SHOCK_TROOPS: bool = true
 const TERRAIN_FORCES: bool = false
-const SABOTEUR: bool = false
-const ENCIRCLEMENT_CORPS: bool = false
-const ARTILLERY: bool = false
+const SABOTEUR: bool = true
+const ENCIRCLEMENT_CORPS: bool = true
+const ARTILLERY: bool = true
 
 # Stats influencing upgrades
 const SHOCK_TROOPS_MULTIPLIER = 2.0
@@ -2412,14 +2412,6 @@ func _physics_process(delta: float) -> void:
 			#if was_clipped:
 				#break
 
-	var extra_after_clip: Array[Area] = []
-	for area: Area in areas:
-		if area.owner_id >= 0:
-			var clip_pairs: Array = clip_obstacles(area.polygon, areas)
-			_apply_clip_result_to_area(area, clip_pairs, extra_after_clip)
-	areas.append_array(extra_after_clip)
-
-
 	# Important that we clear out any small areas, before clipping weaker. It may
 	# accidentally lead to casualties..
 	remove_small_areas()
@@ -2501,7 +2493,14 @@ func _physics_process(delta: float) -> void:
 
 			if print_iter > print_time:
 				print("after ", area.polygon.size())
-	
+
+	var extra_after_clip: Array[Area] = []
+	for area: Area in areas:
+		if area.owner_id >= 0:
+			var clip_pairs: Array = clip_obstacles(area.polygon, areas)
+			_apply_clip_result_to_area(area, clip_pairs, extra_after_clip)
+	areas.append_array(extra_after_clip)
+
 	_update_tanks_and_spawn(delta)
 	_update_trains_and_spawn(delta)
 	_update_ships_and_spawn(delta)
@@ -3341,7 +3340,7 @@ func _collect_intersecting_boundaries() -> void:
 
 		# run ONE batched call for this area against its polygon
 		if polylines.size() > 0:
-			var eps: float = 0.0#1#0.0
+			var eps: float = 1#0.0
 			var results: Array = intersect_many_polyline_with_polygon_deterministic(polylines, area.polygon, eps)
 
 			for i: int in results.size():

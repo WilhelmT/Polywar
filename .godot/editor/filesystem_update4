@@ -13,3 +13,5 @@ res://unit_layer.gd
 res://map_generator.gd
 res://polygon_layer3.gd
 res://global.gd
+res://main.gd
+res://vehicles/train.gd

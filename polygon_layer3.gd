@@ -925,13 +925,13 @@ func _draw_player_polygons_addons(
 							#draw_polyline_colors(more_offset_polygon, [outside_polygon_shadow_color], 2*DrawComponent.AREA_OUTLINE_THICKNESS, true)
 						
 
-					for point in other_area.polygon:
-						if point in area.polygon:
-							continue
-						draw_rect(Rect2(point, Vector2(12,12)), point_color)
-		
-		for point in area.polygon:
-			draw_rect(Rect2(point, Vector2(12,12)), point_color)
+					#for point in other_area.polygon:
+						#if point in area.polygon:
+							#continue
+						#draw_rect(Rect2(point, Vector2(12,12)), point_color)
+		#
+		#for point in area.polygon:
+			#draw_rect(Rect2(point, Vector2(12,12)), point_color)
 
 
 
