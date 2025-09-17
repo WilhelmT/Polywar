@@ -455,8 +455,8 @@ func generate_static_textures() -> void:
 	var map_generator: MapGenerator = get_parent().map_generator
 	var map: Global.Map = get_parent().map
 	# Simple mode only in CREATE (FINAL uses full rendering)
-	var simple: bool = (get_parent().current_mode == Global.GameMode.CREATE)
-	#var simple: bool = true
+	#var simple: bool = (get_parent().current_mode == Global.GameMode.CREATE)
+	var simple: bool = true
 	
 	# Set up background drawer
 	var background_drawer_1 = background_viewport_1.get_child(0)

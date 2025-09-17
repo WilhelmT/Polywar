@@ -8,40 +8,44 @@ arch     = ARGUMENTS.get("arch", "arm64")
 
 godot_cpp_path = os.path.join("..", "godot-cpp")
 
+# Include dirs (godot-cpp + Clipper2)
 env.Append(CPPPATH=[
-    os.path.join(godot_cpp_path, "gdextension"),
     os.path.join(godot_cpp_path, "include"),
     os.path.join(godot_cpp_path, "gen", "include"),
+    os.path.join(godot_cpp_path, "gdextension"),
     os.path.join("thirdparty", "clipper2", "CPP", "Clipper2Lib", "include"),
 ])
 
+# C++ flags
 env.Append(CXXFLAGS=["-std=c++17"])
 if target == "template_release":
     env.Append(CXXFLAGS=["-O3"])
 else:
-    env.Append(CXXFLAGS=["-O2", "-g"])
+    env.Append(CXXFLAGS=["-O2","-g"])
 
-libname = "godot-cpp.%s.%s.%s" % (platform, target, arch)
-env.Append(LIBPATH=[os.path.join(godot_cpp_path, "bin")])
-env.Append(LIBS=[libname])
-if platform == "macos":
-    env.Append(LINKFLAGS=["-Wl,-force_load," + os.path.join(godot_cpp_path,"bin","lib"+libname+".a")])
+# Link against prebuilt godot-cpp static lib: libgodot-cpp.<platform>.<target>.<arch>.a
+libname = "libgodot-cpp.%s.%s.%s.a" % (platform, target, arch)
+libfile = os.path.join(godot_cpp_path, "bin", libname)
+env.Append(LINKFLAGS=[libfile])
 
+# Our sources + all Clipper2 sources
 sources = [
     os.path.join("src", "clipper2_open.cpp"),
     os.path.join("src", "register_types.cpp"),
 ]
+
 clipper_src_dir = os.path.join("thirdparty","clipper2","CPP","Clipper2Lib","src")
 for f in os.listdir(clipper_src_dir):
     if f.endswith(".cpp"):
         sources.append(os.path.join(clipper_src_dir, f))
 
+# Output library
 if platform == "windows":
-    out = "clipper2_ext.windows.%s.%s.dll" % (arch, target)
+    target_name = "clipper2_ext.windows.%s.%s.dll" % (arch, target)
 elif platform == "macos":
-    out = "libclipper2_ext.macos.%s.%s.dylib" % (arch, target)
+    target_name = "libclipper2_ext.macos.%s.%s.dylib" % (arch, target)
 else:
-    out = "libclipper2_ext.linux.%s.%s.so" % (arch, target)
+    target_name = "libclipper2_ext.linux.%s.%s.so" % (arch, target)
 
-shlib = env.SharedLibrary(target=os.path.join("bin", out), source=sources)
+shlib = env.SharedLibrary(target=os.path.join("bin", target_name), source=sources)
 Default(shlib)

@@ -34,6 +34,18 @@ public:
     Array union_overlap(
         const PackedVector2Array &shared_border,
         const PackedVector2Array &polygon) const;
+
+    // Batched: intersect MANY open polylines with MANY closed polygons (single Clipper2 run)
+    // Returns a flat Array of polylines (PackedVector2Array) representing inside segments
+    Array intersect_many_polylines_with_polygons(
+        const Array &polylines,
+        const Array &polygons) const;
+
+    // Batched: difference (outside) of MANY open polylines against MANY closed polygons (single Clipper2 run)
+    // Returns a flat Array of polylines (PackedVector2Array) representing outside segments
+    Array clip_many_polylines_with_polygons(
+        const Array &polylines,
+        const Array &polygons) const;
 };
 
 #endif // CLIPPER2_OPEN_H

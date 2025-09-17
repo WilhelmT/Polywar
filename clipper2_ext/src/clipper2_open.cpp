@@ -24,6 +24,16 @@ void Clipper2Open::_bind_methods() {
         D_METHOD("intersect_polygons_batched", "polygons", "subject_polygon"),
         &Clipper2Open::intersect_polygons_batched
     );
+
+    ClassDB::bind_method(
+        D_METHOD("intersect_many_polylines_with_polygons", "polylines", "polygons"),
+        &Clipper2Open::intersect_many_polylines_with_polygons
+    );
+
+    ClassDB::bind_method(
+        D_METHOD("clip_many_polylines_with_polygons", "polylines", "polygons"),
+        &Clipper2Open::clip_many_polylines_with_polygons
+    );
 }
 
 // Utility: assert no consecutive identical points
@@ -301,4 +311,118 @@ Array Clipper2Open::intersect_polygons_batched(
     }
 
     return results;
+}
+
+// Helper: convert Godot polyline (open) to Clipper2 PathD with IsOpen flag
+static Clipper2Lib::PathD to_pathd_open(const PackedVector2Array &polyline) {
+    Clipper2Lib::PathD path;
+    path.reserve(polyline.size());
+    for (int i = 0; i < polyline.size(); i++) {
+        path.push_back(Clipper2Lib::PointD(
+            static_cast<double>(polyline[i].x),
+            static_cast<double>(polyline[i].y)
+        ));
+    }
+    return path;
+}
+
+static Clipper2Lib::PathD to_pathd_closed(const PackedVector2Array &polygon) {
+    Clipper2Lib::PathD path;
+    path.reserve(polygon.size());
+    for (int i = 0; i < polygon.size(); i++) {
+        path.push_back(Clipper2Lib::PointD(
+            static_cast<double>(polygon[i].x),
+            static_cast<double>(polygon[i].y)
+        ));
+    }
+    return path;
+}
+
+// Extract open path solution polylines from Clipper2 open solution
+static Array open_solution_to_godot_flat(const Clipper2Lib::PathsD &solution) {
+    Array out;
+    for (const auto &path : solution) {
+        if (path.size() < 2) continue;
+        PackedVector2Array line;
+        for (const auto &pt : path) {
+            line.append(Vector2(
+                static_cast<float>(pt.x),
+                static_cast<float>(pt.y)
+            ));
+        }
+        out.append(line);
+    }
+    return out;
+}
+
+// Intersect MANY open polylines with MANY closed polygons in one run
+Array Clipper2Open::intersect_many_polylines_with_polygons(
+    const Array &polylines,
+    const Array &polygons) const
+{
+    Array grouped_results;
+    grouped_results.resize(polygons.size());
+
+    // Pre-convert open subjects once
+    Clipper2Lib::PathsD open_subjects;
+    for (int i = 0; i < polylines.size(); i++) {
+        PackedVector2Array line = polylines[i];
+        if (line.size() < 2) continue;
+        open_subjects.push_back(to_pathd_open(line));
+    }
+    if (open_subjects.empty()) {
+        return grouped_results;
+    }
+
+    for (int p = 0; p < polygons.size(); p++) {
+        PackedVector2Array poly = polygons[p];
+        Array result;
+        if (poly.size() < 3) {
+            grouped_results[p] = result;
+            continue;
+        }
+        Clipper2Lib::ClipperD c;
+        c.AddOpenSubject(open_subjects);
+        Clipper2Lib::PathsD closed_clip;
+        closed_clip.push_back(to_pathd_closed(poly));
+        c.AddClip(closed_clip);
+        Clipper2Lib::PathsD closed_solution; // unused closed output
+        Clipper2Lib::PathsD open_solution;
+        c.Execute(Clipper2Lib::ClipType::Intersection, Clipper2Lib::FillRule::NonZero, closed_solution, open_solution);
+        grouped_results[p] = open_solution_to_godot_flat(open_solution);
+    }
+
+    return grouped_results;
+}
+
+// Difference (outside) of MANY open polylines with MANY closed polygons in one run
+Array Clipper2Open::clip_many_polylines_with_polygons(
+    const Array &polylines,
+    const Array &polygons) const
+{
+    // Difference against union of all polygons; return flat list
+    Clipper2Lib::PathsD open_subjects;
+    for (int i = 0; i < polylines.size(); i++) {
+        PackedVector2Array line = polylines[i];
+        if (line.size() < 2) continue;
+        open_subjects.push_back(to_pathd_open(line));
+    }
+    if (open_subjects.empty()) {
+        return Array();
+    }
+    Clipper2Lib::PathsD closed_union;
+    for (int i = 0; i < polygons.size(); i++) {
+        PackedVector2Array poly = polygons[i];
+        if (poly.size() < 3) continue;
+        closed_union.push_back(to_pathd_closed(poly));
+    }
+    Clipper2Lib::ClipperD c;
+    c.AddOpenSubject(open_subjects);
+    if (!closed_union.empty()) {
+        c.AddClip(closed_union);
+    }
+    Clipper2Lib::PathsD closed_solution; // unused closed output
+    Clipper2Lib::PathsD open_solution;
+    c.Execute(Clipper2Lib::ClipType::Difference, Clipper2Lib::FillRule::NonZero, closed_solution, open_solution);
+    return open_solution_to_godot_flat(open_solution);
 }

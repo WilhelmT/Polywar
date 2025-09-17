@@ -1,0 +1,3 @@
+[submodule "clipper2_ext/godot-cpp"]
+	path = clipper2_ext/godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git

@@ -11,7 +11,7 @@ const EXPANSION_SPEED: float = 12.0*Global.GLOBAL_SPEED
 const MIN_EXPANSION_SPEED: float = 1
 const MAX_EXPANSION_SPEED: float = 500
 
-const SIMPLIFICATION_TOLERANCE: float = 0.05#1
+const SIMPLIFICATION_TOLERANCE: float = 0.02#1
 const MINIMUM_AREA_STRENGTH: float = 1/100.0/1000.0
 const HOLDING_REDUCTION_FACTOR: float = 2.0
 const RIVER_HOLDING_REDUCTION_FACTOR: float = 4.0
@@ -979,7 +979,7 @@ func expand_areas(delta: float) -> void:
 	areas.append_array(extra_areas_created)
 
 
-func _collect_holding_line_circumferences() -> void:
+func _collect_holding_lines() -> void:
 	for area: Area in areas:
 		if area.owner_id < 0: continue
 		total_holding_circumference_by_other_area[area] = {}
@@ -990,91 +990,86 @@ func _collect_holding_line_circumferences() -> void:
 			total_holding_circumference_by_other_area[area][other_area] = 0.0
 			total_weighted_holding_circumference_by_other_area[area][other_area] = 0.0
 
-	for walkable_area: Area in walkable_areas():
-		_collect_holding_line_circumference(
-			walkable_area,
-		)
-
-func _collect_holding_line_circumference(
-	walkable_area: Area,
-) -> void:
+	
 	for area: Area in areas:
 		if area.owner_id < 0: continue		
-		# Skip areas that cannot defend or that were clicked this turn
-		if (
-			not Global.only_expand_on_click(area.owner_id) or
-			clicked_walkable_areas().has(walkable_area.polygon_id)
-		) or (
-			walkable_areas_covered()[area][walkable_area]
-		):
-			continue
-
-		for adjacent_walkable_area: Area in adjacent_walkable_area()[walkable_area]:
-			if Global.only_expand_on_click(area.owner_id) and not clicked_walkable_areas().has(adjacent_walkable_area.polygon_id):
+		
+		for walkable_area: Area in walkable_areas():
+			# Skip areas that cannot defend or that were clicked this turn
+			if (
+				not Global.only_expand_on_click(area.owner_id) or
+				clicked_walkable_areas().has(walkable_area.polygon_id)
+			) or (
+				walkable_areas_covered()[area][walkable_area]
+			):
 				continue
 
-			for shared_border: PackedVector2Array in walkable_area_shared_borders()[walkable_area][adjacent_walkable_area]:
-				for other_area: Area in areas:
-					if other_area.owner_id == area.owner_id or other_area.owner_id < 0:
-						continue
-								
-					if not big_intersecting_areas.has(area):
-						continue
-					if not big_intersecting_areas[area].has(other_area):
-						continue
-					
-					for intersection: PackedVector2Array in big_intersecting_areas[area][other_area]:
-						if Geometry2D.is_polygon_clockwise(intersection):
+			for adjacent_walkable_area: Area in adjacent_walkable_area()[walkable_area]:
+				if Global.only_expand_on_click(area.owner_id) and not clicked_walkable_areas().has(adjacent_walkable_area.polygon_id):
+					continue
+
+				for shared_border: PackedVector2Array in walkable_area_shared_borders()[walkable_area][adjacent_walkable_area]:
+					for other_area: Area in areas:
+						if other_area.owner_id == area.owner_id or other_area.owner_id < 0:
+							continue
+									
+						if not big_intersecting_areas.has(area):
+							continue
+						if not big_intersecting_areas[area].has(other_area):
 							continue
 						
-						for clipped_intersection: PackedVector2Array in Geometry2D.intersect_polyline_with_polygon(
-							shared_border,
-							intersection
-						):
-							clipped_intersection.reverse()
-
-							# ── Iterate segment-by-segment ────────────────────────────
-							var segment_count: int = clipped_intersection.size() - 1
-							for i: int in segment_count:
-								var p1: Vector2 = clipped_intersection[i]
-								var p2: Vector2 = clipped_intersection[i + 1]
-								#
-								if p1.x == 0 and p2.x == 0:
-									continue
-								if p1.x == Global.world_size.x and p2.x == Global.world_size.x:
-									continue
-								if p1.y == 0 and p2.y == 0:
-									continue
-								if p1.y == Global.world_size.y and p2.y == Global.world_size.y:
-									continue
-								var segment_polyline: PackedVector2Array = PackedVector2Array([p1, p2])
-								var segment_midpoint: Vector2 = (p1 + p2) * 0.5
-								
-								var holding_reduction_factor: float = HOLDING_REDUCTION_FACTOR
-								if walkable_area_river_neighbors().has(adjacent_walkable_area):
-									if walkable_area in walkable_area_river_neighbors()[adjacent_walkable_area]:
-										holding_reduction_factor = RIVER_HOLDING_REDUCTION_FACTOR
-								var new_circumference_addition: float = p1.distance_to(p2)
-														
-								total_weighted_circumferences[area] += new_circumference_addition/holding_reduction_factor
-								total_active_circumferences[area] += new_circumference_addition
+						for intersection: PackedVector2Array in big_intersecting_areas[area][other_area]:
+							if Geometry2D.is_polygon_clockwise(intersection):
+								continue
 							
-								total_holding_circumference_by_other_area[area][other_area] += new_circumference_addition
-								total_weighted_holding_circumference_by_other_area[area][other_area] += new_circumference_addition/holding_reduction_factor
+							for clipped_intersection: PackedVector2Array in Geometry2D.intersect_polyline_with_polygon(
+								shared_border,
+								intersection
+							):
+								clipped_intersection.reverse()
+
+								# ── Iterate segment-by-segment ────────────────────────────
+								var segment_count: int = clipped_intersection.size() - 1
+								for i: int in segment_count:
+									var p1: Vector2 = clipped_intersection[i]
+									var p2: Vector2 = clipped_intersection[i + 1]
+									#
+									if p1.x == 0 and p2.x == 0:
+										continue
+									if p1.x == Global.world_size.x and p2.x == Global.world_size.x:
+										continue
+									if p1.y == 0 and p2.y == 0:
+										continue
+									if p1.y == Global.world_size.y and p2.y == Global.world_size.y:
+										continue
+									var segment_polyline: PackedVector2Array = PackedVector2Array([p1, p2])
+									var segment_midpoint: Vector2 = (p1 + p2) * 0.5
+									
+									var holding_reduction_factor: float = HOLDING_REDUCTION_FACTOR
+									if walkable_area_river_neighbors().has(adjacent_walkable_area):
+										if walkable_area in walkable_area_river_neighbors()[adjacent_walkable_area]:
+											holding_reduction_factor = RIVER_HOLDING_REDUCTION_FACTOR
+									var new_circumference_addition: float = p1.distance_to(p2)
+															
+									total_weighted_circumferences[area] += new_circumference_addition/holding_reduction_factor
+									total_active_circumferences[area] += new_circumference_addition
 								
-								# ── Record polyline ────────────────────────────────────
-								if not newly_holding_polylines.has(area):
-									newly_holding_polylines[area] = {}
-								if not newly_holding_polylines[area].has(adjacent_walkable_area):
-									newly_holding_polylines[area][adjacent_walkable_area] = []
-								
-								
-								var area_holding_polylines: Array = newly_holding_polylines[area][adjacent_walkable_area]
-								var stored_weight: float = 1.0 / holding_reduction_factor	# river-aware
-								area_holding_polylines.append({
-									"pl":		segment_polyline,
-									"weight":	stored_weight
-								})
+									total_holding_circumference_by_other_area[area][other_area] += new_circumference_addition
+									total_weighted_holding_circumference_by_other_area[area][other_area] += new_circumference_addition/holding_reduction_factor
+									
+									# ── Record polyline ────────────────────────────────────
+									if not newly_holding_polylines.has(area):
+										newly_holding_polylines[area] = {}
+									if not newly_holding_polylines[area].has(adjacent_walkable_area):
+										newly_holding_polylines[area][adjacent_walkable_area] = []
+									
+									
+									var area_holding_polylines: Array = newly_holding_polylines[area][adjacent_walkable_area]
+									var stored_weight: float = 1.0 / holding_reduction_factor	# river-aware
+									area_holding_polylines.append({
+										"pl":		segment_polyline,
+										"weight":	stored_weight
+									})
 
 func get_strength_density(area: Area) -> float:
 	if adjusted_strength_cache.has(area):
@@ -3346,7 +3341,7 @@ func _collect_intersecting_boundaries() -> void:
 
 		# run ONE batched call for this area against its polygon
 		if polylines.size() > 0:
-			var eps: float = 1#0.0
+			var eps: float = 0.0#1#0.0
 			var results: Array = intersect_many_polyline_with_polygon_deterministic(polylines, area.polygon, eps)
 
 			for i: int in results.size():
@@ -3369,6 +3364,12 @@ func intersect_polygons_batched(
 	subject_polygon: PackedVector2Array
 ) -> Array:
 	return gd_extension_clip.intersect_polygons_batched(polygons, subject_polygon)
+
+func intersect_many_polylines_with_polygons(
+	polylines: Array,
+	polygons: Array
+) -> Array:
+	return gd_extension_clip.intersect_many_polylines_with_polygons(polylines, polygons)
 
 func _collect_big_cross_area_intersections() -> void:
 	for area: Area in areas:
@@ -3457,26 +3458,39 @@ func _collect_expanding_lines() -> void:
 			newly_retracting_polylines[area][walkable_area] = retracting_polylines
 			newly_holding_polylines[area][walkable_area] = holding_polylines
 			
-
-		for slightly_offset_poly: PackedVector2Array in slightly_offset_area_polygons[area]:
-			if slightly_offset_poly.size() == 0: continue
-			var slightly_offset_area_polyline: PackedVector2Array = slightly_offset_poly.duplicate()
-			slightly_offset_area_polyline.append(slightly_offset_area_polyline[0])
-			
-			for walkable_area: Area in walkable_areas():
-				var expanding_polylines: Array[PackedVector2Array] = newly_expanded_polylines[area][walkable_area]
-				if should_expand_subarea(area, walkable_area):
-					var total_circumference: float = 0.0			
-					for poly_intersect: PackedVector2Array in Geometry2D.intersect_polyline_with_polygon(slightly_offset_area_polyline, walkable_area.polygon):
-						total_circumference += GeometryUtils.calculate_polyline_circumference(poly_intersect)
-						expanding_polylines.append(poly_intersect)
-
-					total_weighted_circumferences[area] += total_circumference
-					total_active_circumferences[area] += total_circumference
+		# For each slightly-offset polyline, batch only across walkable areas
+		for slightly_offset_poly_b: PackedVector2Array in slightly_offset_area_polygons[area]:
+			if slightly_offset_poly_b.size() == 0:
+				continue
+			var line_closed_b: PackedVector2Array = slightly_offset_poly_b.duplicate()
+			line_closed_b.append(line_closed_b[0])
+			# Build walkable batch for this single line
+			var batch_polys: Array[PackedVector2Array] = []
+			var batch_keys: Array = []
+			for walkable_area_b: Area in walkable_areas():
+				if should_expand_subarea(area, walkable_area_b):
+					batch_polys.append(walkable_area_b.polygon)
+					batch_keys.append(walkable_area_b)
+			if batch_polys.size() == 0:
+				continue
+			var grouped_line: Array = intersect_many_polylines_with_polygons([line_closed_b], batch_polys)
+			if grouped_line.size() != batch_keys.size():
+				continue
+			var total_circum_sum_line: float = 0.0
+			for gi2: int in grouped_line.size():
+				var walkable_key: Area = batch_keys[gi2]
+				var expanding_out2: Array[PackedVector2Array] = newly_expanded_polylines[area][walkable_key]
+				var segs_for_poly: Array = grouped_line[gi2]
+				for seg3 in segs_for_poly:
+					var poly_intersect3: PackedVector2Array = seg3
+					total_circum_sum_line += GeometryUtils.calculate_polyline_circumference(poly_intersect3)
+					expanding_out2.append(poly_intersect3)
+			total_weighted_circumferences[area] += total_circum_sum_line
+			total_active_circumferences[area] += total_circum_sum_line
 
 func _collect_front_lines() -> void:	
 	_collect_expanding_lines()					
-	_collect_holding_line_circumferences()
+	_collect_holding_lines()
 	_turn_expanding_lines_into_retracting()
 
 
