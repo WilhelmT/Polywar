@@ -11,7 +11,7 @@ const EXPANSION_SPEED: float = 12.0*Global.GLOBAL_SPEED
 const MIN_EXPANSION_SPEED: float = 1
 const MAX_EXPANSION_SPEED: float = 500
 
-const SIMPLIFICATION_TOLERANCE: float = 0.02#1
+const SIMPLIFICATION_TOLERANCE: float = 0.05#1
 const MINIMUM_AREA_STRENGTH: float = 1/100.0/1000.0
 const HOLDING_REDUCTION_FACTOR: float = 2.0
 const RIVER_HOLDING_REDUCTION_FACTOR: float = 4.0
@@ -978,6 +978,22 @@ func expand_areas(delta: float) -> void:
 	areas.append_array(expanded_areas)
 	areas.append_array(extra_areas_created)
 
+
+func _collect_holding_line_circumferences() -> void:
+	for area: Area in areas:
+		if area.owner_id < 0: continue
+		total_holding_circumference_by_other_area[area] = {}
+		total_weighted_holding_circumference_by_other_area[area] = {}
+		for other_area: Area in areas:
+			if other_area.owner_id < 0: continue
+			if area.owner_id == other_area.owner_id: continue
+			total_holding_circumference_by_other_area[area][other_area] = 0.0
+			total_weighted_holding_circumference_by_other_area[area][other_area] = 0.0
+
+	for walkable_area: Area in walkable_areas():
+		_collect_holding_line_circumference(
+			walkable_area,
+		)
 
 func _collect_holding_line_circumference(
 	walkable_area: Area,
@@ -3420,7 +3436,7 @@ func _collect_big_cross_area_intersections() -> void:
 						for ind: int in range(intersecting_polyline.size()-1):							
 							big_intersecting_areas_circumferences[area][other_area] += multiplier*(intersecting_polyline[ind]-intersecting_polyline[ind+1]).length()
 
-func _collect_front_lines() -> void:
+func _collect_expanding_lines() -> void:
 
 	for area: Area in areas:
 		if area.owner_id < 0: continue
@@ -3458,23 +3474,11 @@ func _collect_front_lines() -> void:
 					total_weighted_circumferences[area] += total_circumference
 					total_active_circumferences[area] += total_circumference
 
-					
-	for area: Area in areas:
-		if area.owner_id < 0: continue
-		total_holding_circumference_by_other_area[area] = {}
-		total_weighted_holding_circumference_by_other_area[area] = {}
-		for other_area: Area in areas:
-			if other_area.owner_id < 0: continue
-			if area.owner_id == other_area.owner_id: continue
-			total_holding_circumference_by_other_area[area][other_area] = 0.0
-			total_weighted_holding_circumference_by_other_area[area][other_area] = 0.0
-	
-	for walkable_area: Area in walkable_areas():
-		_collect_holding_line_circumference(
-			walkable_area,
-		)
-	
+func _collect_front_lines() -> void:	
+	_collect_expanding_lines()					
+	_collect_holding_line_circumferences()
 	_turn_expanding_lines_into_retracting()
+
 
 func _get_stronger_enemy_intersections_for_walkable_area(
 		walkable_area: Area,
