@@ -3369,6 +3369,12 @@ func intersect_many_polylines_with_polygons(
 ) -> Array:
 	return gd_extension_clip.intersect_many_polylines_with_polygons(polylines, polygons)
 
+func intersect_many_ringpolylines_with_polygons(
+	polylines: Array,
+	polygons: Array
+) -> Array:
+	return gd_extension_clip.intersect_many_ringpolylines_with_polygons(polylines, polygons)
+
 func _collect_big_cross_area_intersections() -> void:
 	for area: Area in areas:
 		if area.owner_id < 0: continue
@@ -3460,8 +3466,6 @@ func _collect_expanding_lines() -> void:
 		for slightly_offset_poly_b: PackedVector2Array in slightly_offset_area_polygons[area]:
 			if slightly_offset_poly_b.size() == 0:
 				continue
-			var line_closed_b: PackedVector2Array = slightly_offset_poly_b.duplicate()
-			line_closed_b.append(line_closed_b[0])
 			# Build walkable batch for this single line
 			var batch_polys: Array[PackedVector2Array] = []
 			var batch_keys: Array = []
@@ -3471,7 +3475,8 @@ func _collect_expanding_lines() -> void:
 					batch_keys.append(walkable_area_b)
 			if batch_polys.size() == 0:
 				continue
-			var grouped_line: Array = intersect_many_polylines_with_polygons([line_closed_b], batch_polys)
+			# Use ring-aware version to avoid duplicating polyline in GDScript
+			var grouped_line: Array = intersect_many_ringpolylines_with_polygons([slightly_offset_poly_b], batch_polys)
 			if grouped_line.size() != batch_keys.size():
 				continue
 			var total_circum_sum_line: float = 0.0

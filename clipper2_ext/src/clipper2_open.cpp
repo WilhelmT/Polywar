@@ -31,8 +31,13 @@ void Clipper2Open::_bind_methods() {
     );
 
     ClassDB::bind_method(
-        D_METHOD("clip_many_polylines_with_polygons", "polylines", "polygons"),
-        &Clipper2Open::clip_many_polylines_with_polygons
+        D_METHOD("difference_many_polylines_with_polygons", "polylines", "polygons"),
+        &Clipper2Open::difference_many_polylines_with_polygons
+    );
+
+    ClassDB::bind_method(
+        D_METHOD("intersect_many_ringpolylines_with_polygons", "polylines", "polygons"),
+        &Clipper2Open::intersect_many_ringpolylines_with_polygons
     );
 }
 
@@ -326,6 +331,27 @@ static Clipper2Lib::PathD to_pathd_open(const PackedVector2Array &polyline) {
     return path;
 }
 
+// Open subject builder that also adds the last->first segment if input is not closed
+static Clipper2Lib::PathD to_pathd_ring_open(const PackedVector2Array &polyline) {
+    Clipper2Lib::PathD path;
+    int n = polyline.size();
+    if (n <= 0) return path;
+    path.reserve(n + 1);
+    for (int i = 0; i < n; i++) {
+        path.push_back(Clipper2Lib::PointD(
+            static_cast<double>(polyline[i].x),
+            static_cast<double>(polyline[i].y)
+        ));
+    }
+    if (!(polyline[0] == polyline[n - 1])) {
+        path.push_back(Clipper2Lib::PointD(
+            static_cast<double>(polyline[0].x),
+            static_cast<double>(polyline[0].y)
+        ));
+    }
+    return path;
+}
+
 static Clipper2Lib::PathD to_pathd_closed(const PackedVector2Array &polygon) {
     Clipper2Lib::PathD path;
     path.reserve(polygon.size());
@@ -396,7 +422,7 @@ Array Clipper2Open::intersect_many_polylines_with_polygons(
 }
 
 // Difference (outside) of MANY open polylines with MANY closed polygons in one run
-Array Clipper2Open::clip_many_polylines_with_polygons(
+Array Clipper2Open::difference_many_polylines_with_polygons(
     const Array &polylines,
     const Array &polygons) const
 {
@@ -425,4 +451,43 @@ Array Clipper2Open::clip_many_polylines_with_polygons(
     Clipper2Lib::PathsD open_solution;
     c.Execute(Clipper2Lib::ClipType::Difference, Clipper2Lib::FillRule::NonZero, closed_solution, open_solution);
     return open_solution_to_godot_flat(open_solution);
+}
+
+// Intersect MANY ring-polylines (adds last->first) with MANY polygons
+Array Clipper2Open::intersect_many_ringpolylines_with_polygons(
+    const Array &polylines,
+    const Array &polygons) const
+{
+    Array grouped_results;
+    grouped_results.resize(polygons.size());
+
+    Clipper2Lib::PathsD open_subjects;
+    for (int i = 0; i < polylines.size(); i++) {
+        PackedVector2Array line = polylines[i];
+        if (line.size() < 2) continue;
+        open_subjects.push_back(to_pathd_ring_open(line));
+    }
+    if (open_subjects.empty()) {
+        return grouped_results;
+    }
+
+    for (int p = 0; p < polygons.size(); p++) {
+        PackedVector2Array poly = polygons[p];
+        Array result;
+        if (poly.size() < 3) {
+            grouped_results[p] = result;
+            continue;
+        }
+        Clipper2Lib::ClipperD c;
+        c.AddOpenSubject(open_subjects);
+        Clipper2Lib::PathsD closed_clip;
+        closed_clip.push_back(to_pathd_closed(poly));
+        c.AddClip(closed_clip);
+        Clipper2Lib::PathsD closed_solution;
+        Clipper2Lib::PathsD open_solution;
+        c.Execute(Clipper2Lib::ClipType::Intersection, Clipper2Lib::FillRule::NonZero, closed_solution, open_solution);
+        grouped_results[p] = open_solution_to_godot_flat(open_solution);
+    }
+
+    return grouped_results;
 }

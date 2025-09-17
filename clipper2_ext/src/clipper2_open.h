@@ -36,14 +36,19 @@ public:
         const PackedVector2Array &polygon) const;
 
     // Batched: intersect MANY open polylines with MANY closed polygons (single Clipper2 run)
-    // Returns a flat Array of polylines (PackedVector2Array) representing inside segments
+    // Returns grouped Array: one Array per polygon containing inside segments (PackedVector2Array)
     Array intersect_many_polylines_with_polygons(
+        const Array &polylines,
+        const Array &polygons) const;
+
+    // Batched: same but treat each input polyline as a closed ring (adds last->first internally)
+    Array intersect_many_ringpolylines_with_polygons(
         const Array &polylines,
         const Array &polygons) const;
 
     // Batched: difference (outside) of MANY open polylines against MANY closed polygons (single Clipper2 run)
     // Returns a flat Array of polylines (PackedVector2Array) representing outside segments
-    Array clip_many_polylines_with_polygons(
+    Array difference_many_polylines_with_polygons(
         const Array &polylines,
         const Array &polygons) const;
 };
